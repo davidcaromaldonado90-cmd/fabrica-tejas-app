@@ -409,6 +409,22 @@ def ver_pedidos():
     consulta = Pedido.query.order_by(Pedido.fecha_pedido.desc(), Pedido.id_pedido.desc())
     if rol == 'Vendedor':
         consulta = consulta.filter_by(id_vendedor=session['usuario_id'])
+    periodo = request.args.get('periodo', 'todos')
+    hoy = date.today()
+    etiquetas_periodo = {
+        'todos': 'Todos los pedidos',
+        'hoy': 'Pedidos de hoy',
+        'semana': 'Pedidos de esta semana',
+        'mes': 'Pedidos de este mes',
+    }
+    if periodo == 'hoy':
+        consulta = consulta.filter(Pedido.fecha_pedido == hoy)
+    elif periodo == 'semana':
+        consulta = consulta.filter(Pedido.fecha_pedido >= hoy - timedelta(days=hoy.weekday()))
+    elif periodo == 'mes':
+        consulta = consulta.filter(Pedido.fecha_pedido >= hoy.replace(day=1))
+    else:
+        periodo = 'todos'
     pedidos = consulta.all()
 
     resumen = None
@@ -424,7 +440,8 @@ def ver_pedidos():
             'Últimos 15 días': {'pedidos': quincena[0], 'total': quincena[1]},
             'Este mes': {'pedidos': mes[0], 'total': mes[1]},
         }
-    return render_template('pedidos.html', pedidos=pedidos, resumen=resumen)
+    return render_template('pedidos.html', pedidos=pedidos, resumen=resumen, periodo=periodo,
+                           etiqueta_periodo=etiquetas_periodo[periodo])
 
 
 @app.route('/ver_pedido/<int:id>')
