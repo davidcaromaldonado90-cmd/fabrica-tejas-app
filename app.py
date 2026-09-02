@@ -58,6 +58,7 @@ class DetallePedido(db.Model):
     id_detalle = db.Column(db.Integer, primary_key=True)
     id_pedido = db.Column(db.Integer, db.ForeignKey('pedidos.id_pedido'), nullable=False)
     id_producto = db.Column(db.Integer, db.ForeignKey('productos.id_producto'), nullable=False)
+    color = db.Column(db.String(50), nullable=True)
     medida_metros = db.Column(db.Numeric(5, 2), nullable=False)
     cantidad = db.Column(db.Integer, nullable=False)
     subtotal = db.Column(db.Numeric(10, 2), nullable=False)
@@ -467,37 +468,36 @@ def guardar_pedido():
     if not id_vendedor or not Usuario.query.filter_by(id_usuario=id_vendedor, rol='Vendedor').first():
         flash('Debes asignar un vendedor válido al pedido.', 'danger')
         return redirect(url_for('mostrar_formulario_pedido'))
-    # 1. Crear el pedido (la cabecera)
-    nuevo_pedido = Pedido(
-        id_cliente=request.form['id_cliente'],
-        id_vendedor=id_vendedor,
-        fecha_pedido=request.form['fecha_pedido'],
-        estado='Pendiente'
-    )
-    db.session.add(nuevo_pedido)
-    db.session.commit()  # Se guarda ya, para que MySQL le asigne un id_pedido
+    productos_ids = request.form.getlist('id_producto[]')
+    medidas = request.form.getlist('medida_metros[]')
+    cantidades = request.form.getlist('cantidad[]')
+    colores = request.form.getlist('color[]')
+    if not productos_ids or not (len(productos_ids) == len(medidas) == len(cantidades) == len(colores)):
+        flash('Agrega al menos un producto y completa todos sus datos.', 'danger')
+        return redirect(url_for('mostrar_formulario_pedido'))
 
-    # 2. Calcular el subtotal de la linea de producto
-    id_producto = request.form['id_producto']
-    medida = float(request.form['medida_metros'])
-    cantidad = int(request.form['cantidad'])
-
-    producto = Producto.query.get(id_producto)
-    subtotal = medida * float(producto.precio_por_metro) * cantidad
-
-    # 3. Crear la linea de detalle
-    detalle = DetallePedido(
-        id_pedido=nuevo_pedido.id_pedido,
-        id_producto=id_producto,
-        medida_metros=medida,
-        cantidad=cantidad,
-        subtotal=subtotal
-    )
-    db.session.add(detalle)
-
-    # 4. Actualizar el total del pedido
-    nuevo_pedido.total_pedido = subtotal
-    db.session.commit()
+    try:
+        nuevo_pedido = Pedido(id_cliente=request.form['id_cliente'], id_vendedor=id_vendedor,
+                              fecha_pedido=request.form['fecha_pedido'], estado='Pendiente')
+        db.session.add(nuevo_pedido)
+        db.session.flush()
+        total = 0
+        for id_producto, medida, cantidad, color in zip(productos_ids, medidas, cantidades, colores):
+            producto = db.session.get(Producto, int(id_producto))
+            medida = float(medida)
+            cantidad = int(cantidad)
+            if not producto or medida <= 0 or cantidad <= 0 or not color.strip():
+                raise ValueError
+            subtotal = medida * float(producto.precio_por_metro) * cantidad
+            db.session.add(DetallePedido(id_pedido=nuevo_pedido.id_pedido, id_producto=producto.id_producto,
+                                         color=color.strip(), medida_metros=medida, cantidad=cantidad, subtotal=subtotal))
+            total += subtotal
+        nuevo_pedido.total_pedido = total
+        db.session.commit()
+    except (ValueError, TypeError):
+        db.session.rollback()
+        flash('Revisa los productos, colores, medidas y cantidades del pedido.', 'danger')
+        return redirect(url_for('mostrar_formulario_pedido'))
 
     return redirect('/pedidos')
 
@@ -519,14 +519,34 @@ def editar_pedido(id):
                 flash('Selecciona un vendedor válido.', 'danger')
                 return redirect(url_for('editar_pedido', id=id))
             pedido.id_vendedor = id_vendedor
-        detalle = pedido.detalles[0]
-        detalle.id_producto = request.form['id_producto']
-        detalle.medida_metros = float(request.form['medida_metros'])
-        detalle.cantidad = int(request.form['cantidad'])
-        producto = Producto.query.get_or_404(detalle.id_producto)
-        detalle.subtotal = detalle.medida_metros * float(producto.precio_por_metro) * detalle.cantidad
-        pedido.total_pedido = detalle.subtotal
-        db.session.commit()
+        productos_ids = request.form.getlist('id_producto[]')
+        medidas = request.form.getlist('medida_metros[]')
+        cantidades = request.form.getlist('cantidad[]')
+        colores = request.form.getlist('color[]')
+        if not productos_ids or not (len(productos_ids) == len(medidas) == len(cantidades) == len(colores)):
+            flash('Agrega al menos un producto y completa todos sus datos.', 'danger')
+            return redirect(url_for('editar_pedido', id=id))
+        try:
+            for detalle in pedido.detalles:
+                db.session.delete(detalle)
+            db.session.flush()
+            total = 0
+            for id_producto, medida, cantidad, color in zip(productos_ids, medidas, cantidades, colores):
+                producto = db.session.get(Producto, int(id_producto))
+                medida = float(medida)
+                cantidad = int(cantidad)
+                if not producto or medida <= 0 or cantidad <= 0 or not color.strip():
+                    raise ValueError
+                subtotal = medida * float(producto.precio_por_metro) * cantidad
+                db.session.add(DetallePedido(id_pedido=pedido.id_pedido, id_producto=producto.id_producto,
+                                             color=color.strip(), medida_metros=medida, cantidad=cantidad, subtotal=subtotal))
+                total += subtotal
+            pedido.total_pedido = total
+            db.session.commit()
+        except (ValueError, TypeError):
+            db.session.rollback()
+            flash('Revisa los productos, colores, medidas y cantidades del pedido.', 'danger')
+            return redirect(url_for('editar_pedido', id=id))
         flash(f'Pedido #{pedido.id_pedido} actualizado correctamente.', 'success')
         return redirect(url_for('ver_pedidos'))
 
