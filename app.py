@@ -247,6 +247,23 @@ def actualizar_rol(id):
     return redirect(url_for('usuarios'))
 
 
+@app.route('/usuarios/<int:id>/eliminar', methods=['POST'])
+@roles_requeridos('Administrador')
+def eliminar_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+    if usuario.id_usuario == session['usuario_id']:
+        flash('No puedes eliminar tu propia cuenta mientras tienes la sesión activa.', 'danger')
+    elif usuario.rol == 'Administrador' and Usuario.query.filter_by(rol='Administrador').count() <= 1:
+        flash('No puedes eliminar al único administrador del sistema.', 'danger')
+    elif Pedido.query.filter_by(id_vendedor=usuario.id_usuario).first():
+        flash(f'No puedes eliminar a {usuario.nombre} porque tiene pedidos registrados. Conserva la trazabilidad o reasigna sus pedidos.', 'danger')
+    else:
+        db.session.delete(usuario)
+        db.session.commit()
+        flash(f'La cuenta de {usuario.nombre} fue eliminada.', 'success')
+    return redirect(url_for('usuarios'))
+
+
 @app.route('/solicitudes-recuperacion/<int:id>/atender', methods=['POST'])
 @roles_requeridos('Administrador')
 def atender_solicitud_recuperacion(id):
