@@ -1,6 +1,7 @@
 import os
 from functools import wraps
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -46,6 +47,7 @@ class Pedido(db.Model):
     id_cliente = db.Column(db.Integer, db.ForeignKey('clientes.id_cliente'), nullable=False)
     id_vendedor = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'), nullable=True)
     fecha_pedido = db.Column(db.Date, nullable=False)
+    fecha_registro = db.Column(db.DateTime, nullable=True, default=lambda: datetime.now(ZoneInfo('America/Bogota')).replace(tzinfo=None))
     estado = db.Column(db.Enum('Pendiente', 'Listo para entrega', 'Entregado'), nullable=False, default='Pendiente')
     total_pedido = db.Column(db.Numeric(10, 2), default=0)
 
@@ -416,6 +418,7 @@ def ver_pedidos():
         'hoy': 'Pedidos de hoy',
         'semana': 'Pedidos de esta semana',
         'mes': 'Pedidos de este mes',
+        'registrados_hoy': 'Pedidos registrados hoy',
     }
     if periodo == 'hoy':
         consulta = consulta.filter(Pedido.fecha_pedido == hoy)
@@ -423,6 +426,8 @@ def ver_pedidos():
         consulta = consulta.filter(Pedido.fecha_pedido >= hoy - timedelta(days=hoy.weekday()))
     elif periodo == 'mes':
         consulta = consulta.filter(Pedido.fecha_pedido >= hoy.replace(day=1))
+    elif periodo == 'registrados_hoy':
+        consulta = consulta.filter(func.date(Pedido.fecha_registro) == hoy)
     else:
         periodo = 'todos'
     pedidos = consulta.all()
