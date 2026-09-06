@@ -1,0 +1,37 @@
+/* Evita los fondos claros que Bootstrap aplica a tablas y controles. */
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #f7f4ff;
+  --bs-table-border-color: #ffffff16;
+  --bs-table-hover-bg: #ffffff0c;
+  --bs-table-hover-color: #ffffff;
+  background: transparent !important;
+}
+
+.table > tbody > tr,
+.table > tbody > tr > td {
+  background: transparent !important;
+  color: #f3effb !important;
+}
+
+.table > tbody > tr:hover > td {
+  background: #ffffff0c !important;
+}
+
+.table .text-dark,
+.table .text-body,
+.table strong {
+  color: #ffffff !important;
+}
+
+.content-card .table-responsive {
+  background: linear-gradient(135deg, #211a31b8, #18342fb0);
+}
+
+.content-card .border-bottom {
+  border-color: #ffffff1f !important;
+}
+
+.content-card .form-control {
+  background: #120e1d !important;
+}
