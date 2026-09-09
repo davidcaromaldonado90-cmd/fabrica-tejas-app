@@ -29,7 +29,7 @@
     <div class="user-box"><span class="user-avatar">{{ session.get('usuario_nombre', 'U')[0]|upper }}</span><div><strong>{{ session.get('usuario_nombre') }}</strong><small>{{ rol }}</small></div><a class="logout" href="/cerrar-sesion" title="Cerrar sesión"><i class="bi bi-box-arrow-right"></i></a></div>
   </aside>
   <main class="main">
-    <header class="topbar"><div><p class="eyebrow">GESTIÓN DE FÁBRICA</p><h1 class="title">{% block encabezado %}Panel{% endblock %}</h1><p class="subtitle">{% block subtitulo %}{% endblock %}</p></div><div class="today"><i class="bi bi-calendar3"></i><span id="fecha"></span></div></header>
+    <header class="topbar"><div><p class="eyebrow">GESTIÓN DE FÁBRICA</p><h1 class="title">{% block encabezado %}Panel{% endblock %}</h1><p class="subtitle">{% block subtitulo %}{% endblock %}</p></div><div class="topbar-date"><i class="bi bi-calendar3"></i><span id="fecha"></span></div></header>
     {% with messages = get_flashed_messages(with_categories=true) %}{% for categoria, mensaje in messages %}<div class="flash flash-{{ categoria }}"><i class="bi bi-info-circle"></i>{{ mensaje }}</div>{% endfor %}{% endwith %}
     {% block contenido %}{% endblock %}
   </main>
