@@ -295,8 +295,23 @@ def reportes():
     if periodo not in periodos:
         periodo = '30'
 
+    fecha_inicio = request.args.get('fecha_inicio', '')
+    fecha_fin = request.args.get('fecha_fin', '')
     consulta = consulta_por_rol()
-    if periodo != 'todos':
+    etiqueta_periodo = periodos[periodo]
+    if rol in ('Administrador', 'Vendedor') and fecha_inicio and fecha_fin:
+        try:
+            inicio = date.fromisoformat(fecha_inicio)
+            fin = date.fromisoformat(fecha_fin)
+            if inicio <= fin:
+                consulta = consulta.filter(Pedido.fecha_pedido.between(inicio, fin))
+                periodo = 'rango'
+                etiqueta_periodo = f'{inicio.strftime("%d/%m/%Y")} — {fin.strftime("%d/%m/%Y")}'
+            else:
+                fecha_inicio = fecha_fin = ''
+        except ValueError:
+            fecha_inicio = fecha_fin = ''
+    elif periodo != 'todos':
         consulta = consulta.filter(Pedido.fecha_pedido >= date.today() - timedelta(days=int(periodo) - 1))
     pedidos_periodo = consulta.order_by(Pedido.fecha_pedido.asc()).all()
 
@@ -326,7 +341,8 @@ def reportes():
     if rol != 'Operario':
         metricas.update({'Valor total': total_ventas, 'Ticket promedio': total_ventas / total_pedidos if total_pedidos else 0})
     return render_template(
-        'reportes.html', rol=rol, periodo=periodo, periodos=periodos, metricas=metricas,
+        'reportes.html', rol=rol, periodo=periodo, periodos=periodos, etiqueta_periodo=etiqueta_periodo,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, metricas=metricas,
         por_estado=por_estado, ventas_labels=list(ventas_por_dia.keys()),
         ventas_data=list(pedidos_por_dia.values()) if rol == 'Operario' else list(ventas_por_dia.values()),
         top_productos=top_productos, top_clientes=top_clientes
@@ -426,8 +442,20 @@ def exportar_reporte(formato):
     periodo = request.args.get('periodo', '30')
     if periodo not in ('7', '30', '90', 'todos'):
         periodo = '30'
+    fecha_inicio = request.args.get('fecha_inicio', '')
+    fecha_fin = request.args.get('fecha_fin', '')
     consulta = consulta_por_rol()
-    if periodo != 'todos':
+    if session['usuario_rol'] in ('Administrador', 'Vendedor') and fecha_inicio and fecha_fin:
+        try:
+            inicio = date.fromisoformat(fecha_inicio)
+            fin = date.fromisoformat(fecha_fin)
+            if inicio <= fin:
+                consulta = consulta.filter(Pedido.fecha_pedido.between(inicio, fin))
+            else:
+                fecha_inicio = fecha_fin = ''
+        except ValueError:
+            fecha_inicio = fecha_fin = ''
+    if not (fecha_inicio and fecha_fin) and periodo != 'todos':
         consulta = consulta.filter(Pedido.fecha_pedido >= date.today() - timedelta(days=int(periodo) - 1))
     pedidos = consulta.order_by(Pedido.fecha_pedido.desc()).all()
     filas = [(p.id_pedido, p.cliente.nombre_razon_social, p.fecha_pedido, p.estado, float(p.total_pedido or 0)) for p in pedidos]
