@@ -431,15 +431,28 @@ def exportar_reporte(formato):
     if formato == 'pdf':
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
         from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        salida = BytesIO(); documento = SimpleDocTemplate(salida, pagesize=letter)
-        estilos = getSampleStyleSheet(); data = [encabezados]
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+        salida = BytesIO(); documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=38, leftMargin=38, topMargin=44, bottomMargin=38)
+        estilos = getSampleStyleSheet(); total = sum(fila[4] for fila in filas)
+        estados = {estado: sum(1 for fila in filas if fila[3] == estado) for estado in ('Pendiente', 'Listo para entrega', 'Entregado')}
+        titulo = 'REPORTE COMERCIAL' if mostrar_valor else 'REPORTE OPERATIVO'
+        cabecera = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">' + titulo + '</font>', estilos['Title']), Paragraph('<b>Generado</b><br/><font size="9">' + datetime.now(ZoneInfo('America/Bogota')).strftime('%d/%m/%Y %H:%M') + '</font>', estilos['Normal'])]], colWidths=[4.7*inch, 2.2*inch])
+        cabecera.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#092B52')),('TEXTCOLOR',(0,0),(-1,-1),colors.white),('PADDING',(0,0),(-1,-1),16),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,0),'RIGHT')]))
+        tarjetas = [['PEDIDOS', str(len(filas)), 'PENDIENTES', str(estados['Pendiente'])]]
+        if mostrar_valor:
+            tarjetas[0] += ['VALOR TOTAL', f'${total:,.0f}']
+        else:
+            tarjetas[0] += ['LISTOS PARA ENTREGA', str(estados['Listo para entrega'])]
+        kpis = Table(tarjetas, colWidths=([1.15*inch, .8*inch] * 3))
+        kpis.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#E9F6FC')),('TEXTCOLOR',(0,0),(-1,-1),colors.HexColor('#0D4D86')),('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),9),('BOX',(0,0),(-1,-1),.5,colors.HexColor('#CFE4F0')),('INNERGRID',(0,0),(-1,-1),.5,colors.HexColor('#CFE4F0')),('ALIGN',(0,0),(-1,-1),'CENTER'),('PADDING',(0,0),(-1,-1),12)]))
+        data = [encabezados]
         for fila in filas:
             data.append([fila[0], fila[1], fila[2].strftime('%d/%m/%Y'), fila[3]] + ([f'${fila[4]:,.0f}'] if mostrar_valor else []))
-        tabla = Table(data, repeatRows=1, colWidths=[55, 190, 80, 105] + ([80] if mostrar_valor else []))
-        tabla.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('FONTSIZE', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 7), ('TOPPADDING', (0, 0), (-1, -1), 7)]))
-        documento.build([Paragraph('LAMINAS Y TABLEROS MONTOYA', estilos['Title']), Paragraph('Reporte de pedidos', estilos['Heading2']), Spacer(1, 12), tabla])
+        tabla = Table(data, repeatRows=1, colWidths=[52, 185, 76, 105] + ([78] if mostrar_valor else []))
+        tabla.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('FONTSIZE', (0, 0), (-1, -1), 8), ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F5FBFE')]), ('BOTTOMPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 8)]))
+        documento.build([cabecera, Spacer(1, 16), kpis, Spacer(1, 20), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 16), Paragraph('Documento generado por el sistema de gestión de LÁMINAS Y TABLEROS MONTOYA.', estilos['Normal'])])
         salida.seek(0)
         return send_file(salida, as_attachment=True, download_name='reporte_pedidos.pdf', mimetype='application/pdf')
     return redirect(url_for('reportes'))
