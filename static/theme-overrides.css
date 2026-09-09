@@ -161,6 +161,7 @@ body {
 .payment-card { max-width: 1180px; }
 .payment-title { display: flex; align-items: center; gap: 10px; padding-bottom: 11px; }
 .payment-title > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #e4f3f9; color: var(--blue); }
+.sale-card { background: linear-gradient(120deg, #fff, #f6fbfd) !important; }.sale-title { display: flex; align-items: center; gap: 10px; }.sale-title > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #e4f3f9; color: var(--blue); }
 .stock-alert, .balance-alert { display: flex; align-items: center; gap: 12px; padding: 14px 17px; background: #fffaf3 !important; border-color: #f0d9b9 !important; }
 .balance-alert { background: #f3f9fc !important; border-color: #cfe3ed !important; }
 .stock-alert-icon, .balance-alert-icon { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; background: #ffebcf; color: var(--warning); font-size: 1rem; }

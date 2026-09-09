@@ -369,19 +369,31 @@ def inventario():
         if not cantidad or cantidad <= 0:
             flash('Indica una cantidad válida.', 'danger')
             return redirect(url_for('inventario'))
-        tipo = request.form['tipo']
-        if tipo == 'Salida' and item.cantidad_actual < cantidad:
-            flash('No hay existencias suficientes para registrar la salida.', 'danger')
+        cliente_venta = request.form.get('cliente_venta', '').strip()
+        observacion = request.form.get('observacion', '').strip()
+        if not cliente_venta:
+            flash('Indica el cliente o destino de la venta.', 'danger')
             return redirect(url_for('inventario'))
-        item.cantidad_actual += cantidad if tipo == 'Entrada' else -cantidad
-        db.session.add(MovimientoInventario(id_inventario=item.id_inventario, id_usuario=session['usuario_id'], tipo=tipo, cantidad=cantidad, motivo=request.form['motivo'].strip() or 'Ajuste manual'))
+        if item.cantidad_actual < cantidad:
+            flash('No hay existencias suficientes para registrar esta venta.', 'danger')
+            return redirect(url_for('inventario'))
+        item.cantidad_actual -= cantidad
+        motivo = f'Venta directa · {cliente_venta}'
+        if observacion:
+            motivo += f' · {observacion}'
+        db.session.add(MovimientoInventario(id_inventario=item.id_inventario, id_usuario=session['usuario_id'], tipo='Salida', cantidad=cantidad, motivo=motivo[:180]))
         db.session.commit()
-        flash('Movimiento de inventario registrado.', 'success')
+        flash('Venta directa registrada e inventario actualizado.', 'success')
         return redirect(url_for('inventario'))
     productos = Producto.query.order_by(Producto.tipo_estilo).all()
     items = Inventario.query.join(Producto).order_by(Producto.tipo_estilo, Inventario.color).all()
     alertas_inventario = [item for item in items if item.cantidad_actual <= item.minimo]
-    return render_template('inventario.html', items=items, productos=productos, alertas_inventario=alertas_inventario)
+    ventas_directas = MovimientoInventario.query.filter(
+        MovimientoInventario.tipo == 'Salida',
+        MovimientoInventario.motivo.like('Venta directa ·%')
+    ).order_by(MovimientoInventario.fecha.desc()).limit(8).all()
+    return render_template('inventario.html', items=items, productos=productos, alertas_inventario=alertas_inventario,
+                           ventas_directas=ventas_directas)
 
 
 @app.route('/inventario/nuevo', methods=['POST'])
