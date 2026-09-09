@@ -218,6 +218,56 @@ def panel():
     return render_template('panel.html', datos=datos, rol=rol)
 
 
+@app.route('/reportes')
+@roles_requeridos('Administrador', 'Operario', 'Vendedor')
+def reportes():
+    """Indicadores comerciales y operativos, respetando el alcance de cada perfil."""
+    rol = session['usuario_rol']
+    periodo = request.args.get('periodo', '30')
+    periodos = {'7': 'Últimos 7 días', '30': 'Últimos 30 días', '90': 'Últimos 90 días', 'todos': 'Todo el historial'}
+    if periodo not in periodos:
+        periodo = '30'
+
+    consulta = Pedido.query
+    if rol == 'Vendedor':
+        consulta = consulta.filter(Pedido.id_vendedor == session['usuario_id'])
+    if periodo != 'todos':
+        consulta = consulta.filter(Pedido.fecha_pedido >= date.today() - timedelta(days=int(periodo) - 1))
+    pedidos_periodo = consulta.order_by(Pedido.fecha_pedido.asc()).all()
+
+    total_ventas = sum(float(p.total_pedido or 0) for p in pedidos_periodo)
+    total_pedidos = len(pedidos_periodo)
+    por_estado = {estado: 0 for estado in ('Pendiente', 'Listo para entrega', 'Entregado')}
+    ventas_por_dia = {}
+    productos = {}
+    clientes = {}
+    for pedido in pedidos_periodo:
+        por_estado[pedido.estado] = por_estado.get(pedido.estado, 0) + 1
+        dia = pedido.fecha_pedido.strftime('%d %b')
+        ventas_por_dia[dia] = ventas_por_dia.get(dia, 0) + float(pedido.total_pedido or 0)
+        nombre_cliente = pedido.cliente.nombre_razon_social
+        clientes[nombre_cliente] = clientes.get(nombre_cliente, 0) + float(pedido.total_pedido or 0)
+        for detalle in pedido.detalles:
+            nombre_producto = f'{detalle.producto.tipo_estilo} · Cal. {detalle.producto.calibre}'
+            actual = productos.setdefault(nombre_producto, {'cantidad': 0, 'metros': 0})
+            actual['cantidad'] += detalle.cantidad
+            actual['metros'] += float(detalle.medida_metros) * detalle.cantidad
+
+    top_productos = sorted(productos.items(), key=lambda item: item[1]['metros'], reverse=True)[:5]
+    top_clientes = sorted(clientes.items(), key=lambda item: item[1], reverse=True)[:5]
+    metricas = {
+        'Pedidos': total_pedidos,
+        'Valor total': total_ventas,
+        'Ticket promedio': total_ventas / total_pedidos if total_pedidos else 0,
+        'Metros solicitados': sum(item['metros'] for item in productos.values()),
+    }
+    return render_template(
+        'reportes.html', rol=rol, periodo=periodo, periodos=periodos, metricas=metricas,
+        por_estado=por_estado, ventas_labels=list(ventas_por_dia.keys()), ventas_data=list(ventas_por_dia.values()),
+        top_productos=top_productos, top_clientes=top_clientes
+    )
+
+
 @app.route('/mis-pedidos')
 @roles_requeridos('Cliente')
 def mis_pedidos():
