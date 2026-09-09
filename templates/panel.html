@@ -17,6 +17,16 @@
   <div class="col-md-4"><article class="content-card p-4 h-100 stat-card"><div class="text-secondary small text-uppercase fw-bold" style="letter-spacing:.8px">{{ titulo }}</div><div class="mt-2 fs-3 fw-bold">{{ valor }}</div></article></div>
   {% endfor %}
 </div>
+{% if resumen_mensual %}
+<section class="monthly-summary content-card mt-4">
+  <div class="card-header-custom"><div><h2 class="h5 mb-1">Resumen del mes</h2><p class="text-secondary small mb-0">Ventas y avance de pedidos desde el primer día del mes.</p></div><i class="bi bi-calendar2-check text-primary fs-4"></i></div>
+  <div class="row g-0">
+    <div class="col-md-4"><div class="summary-item"><span>Ventas del mes</span><strong>${{ '{:,.0f}'.format(resumen_mensual['Ventas del mes']).replace(',', '.') }}</strong></div></div>
+    <div class="col-md-4"><div class="summary-item"><span>Pedidos entregados</span><strong>{{ resumen_mensual['Entregados'] }}</strong></div></div>
+    <div class="col-md-4"><div class="summary-item"><span>Pedidos pendientes</span><strong>{{ resumen_mensual['Pendientes'] }}</strong></div></div>
+  </div>
+</section>
+{% endif %}
 <section class="content-card p-4 mt-4 action-card">
   <h2 class="h5 fw-bold">Acciones disponibles</h2>
   <p class="text-secondary mb-3">{% if rol == 'Administrador' %}Gestiona usuarios, clientes, productos y pedidos desde este panel.{% elif rol == 'Operario' %}Consulta los pedidos de fábrica y avanza su proceso de producción.{% elif rol == 'Vendedor' %}Registra pedidos, consulta tus ventas y actualiza la información de tus clientes.{% else %}Aquí podrás consultar tus pedidos y comunicarte con nuestro equipo comercial.{% endif %}</p>

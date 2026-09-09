@@ -271,8 +271,16 @@ def cerrar_sesion():
 def panel():
     rol = session['usuario_rol']
     datos = {}
+    resumen_mensual = None
     if rol == 'Administrador':
         datos = {'Clientes registrados': Cliente.query.count(), 'Productos activos': Producto.query.count(), 'Pedidos registrados': Pedido.query.count()}
+        inicio_mes = date.today().replace(day=1)
+        pedidos_mes = Pedido.query.filter(Pedido.fecha_pedido >= inicio_mes).all()
+        resumen_mensual = {
+            'Ventas del mes': sum(float(p.total_pedido or 0) for p in pedidos_mes),
+            'Entregados': sum(p.estado == 'Entregado' for p in pedidos_mes),
+            'Pendientes': sum(p.estado == 'Pendiente' for p in pedidos_mes),
+        }
     elif rol == 'Operario':
         datos = {'Pedidos pendientes': Pedido.query.filter_by(estado='Pendiente').count(), 'Listos para entrega': Pedido.query.filter_by(estado='Listo para entrega').count(), 'Pedidos entregados': Pedido.query.filter_by(estado='Entregado').count()}
     elif rol == 'Vendedor':
@@ -282,7 +290,7 @@ def panel():
         cliente = Cliente.query.filter_by(correo=Usuario.query.get(session['usuario_id']).correo).first()
         pedidos_cliente = Pedido.query.filter_by(id_cliente=cliente.id_cliente).count() if cliente else 0
         datos = {'Mis pedidos': pedidos_cliente, 'Estado de cuenta': 'Activo', 'Atención': 'Contáctanos para cotizar'}
-    return render_template('panel.html', datos=datos, rol=rol)
+    return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual)
 
 
 @app.route('/reportes')
@@ -372,7 +380,8 @@ def inventario():
         return redirect(url_for('inventario'))
     productos = Producto.query.order_by(Producto.tipo_estilo).all()
     items = Inventario.query.join(Producto).order_by(Producto.tipo_estilo, Inventario.color).all()
-    return render_template('inventario.html', items=items, productos=productos)
+    alertas_inventario = [item for item in items if item.cantidad_actual <= item.minimo]
+    return render_template('inventario.html', items=items, productos=productos, alertas_inventario=alertas_inventario)
 
 
 @app.route('/inventario/nuevo', methods=['POST'])
@@ -423,7 +432,10 @@ def pagos():
             flash('Pago registrado correctamente.', 'success')
         return redirect(url_for('pagos'))
     pedidos = Pedido.query.order_by(Pedido.fecha_pedido.desc()).all()
-    return render_template('pagos.html', pedidos=pedidos, saldo_pedido=saldo_pedido)
+    saldos_pendientes = [pedido for pedido in pedidos if saldo_pedido(pedido) > 0]
+    total_por_cobrar = sum(saldo_pedido(pedido) for pedido in saldos_pendientes)
+    return render_template('pagos.html', pedidos=pedidos, saldo_pedido=saldo_pedido,
+                           saldos_pendientes=saldos_pendientes, total_por_cobrar=total_por_cobrar)
 
 
 @app.route('/pedidos/<int:id>/historial')
@@ -731,8 +743,9 @@ def ver_pedidos():
             'Últimos 15 días': {'pedidos': quincena[0], 'total': quincena[1]},
             'Este mes': {'pedidos': mes[0], 'total': mes[1]},
         }
+    clientes_filtro = Cliente.query.join(Pedido).filter(Pedido.id_vendedor == session['usuario_id']).distinct().order_by(Cliente.nombre_razon_social).all() if rol == 'Vendedor' else Cliente.query.order_by(Cliente.nombre_razon_social).all()
     return render_template('pedidos.html', pedidos=pedidos, resumen=resumen, periodo=periodo,
-                           etiqueta_periodo=etiquetas_periodo[periodo])
+                           etiqueta_periodo=etiquetas_periodo[periodo], clientes_filtro=clientes_filtro)
 
 
 @app.route('/ver_pedido/<int:id>')
