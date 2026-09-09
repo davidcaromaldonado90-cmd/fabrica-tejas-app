@@ -2,6 +2,7 @@ import os
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, date, timedelta
+from calendar import monthrange
 from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for, send_file
@@ -375,9 +376,20 @@ def nuevo_item_inventario():
 @app.route('/calendario')
 @roles_requeridos('Administrador', 'Operario', 'Vendedor')
 def calendario():
-    inicio = date.today()
-    pedidos = consulta_por_rol().filter(Pedido.fecha_pedido.between(inicio, inicio + timedelta(days=30))).order_by(Pedido.fecha_pedido).all()
-    return render_template('calendario.html', pedidos=pedidos, hoy=inicio)
+    hoy = date.today()
+    anio = request.args.get('anio', hoy.year, type=int)
+    mes = request.args.get('mes', hoy.month, type=int)
+    if mes < 1 or mes > 12:
+        mes = hoy.month
+    primer_dia = date(anio, mes, 1)
+    ultimo_dia = date(anio, mes, monthrange(anio, mes)[1])
+    pedidos = consulta_por_rol().filter(Pedido.fecha_pedido.between(primer_dia, ultimo_dia)).order_by(Pedido.fecha_pedido).all()
+    pedidos_por_fecha = {}
+    for pedido in pedidos:
+        pedidos_por_fecha.setdefault(pedido.fecha_pedido.isoformat(), []).append(pedido)
+    anterior = (primer_dia - timedelta(days=1)).replace(day=1)
+    siguiente = (ultimo_dia + timedelta(days=1)).replace(day=1)
+    return render_template('calendario.html', pedidos_por_fecha=pedidos_por_fecha, hoy=hoy, mes=mes, anio=anio, primer_dia=primer_dia, dias_mes=ultimo_dia.day, inicio_semana=primer_dia.weekday(), anterior=anterior, siguiente=siguiente)
 
 
 @app.route('/pagos', methods=['GET', 'POST'])
@@ -387,12 +399,12 @@ def pagos():
         pedido = Pedido.query.get_or_404(request.form.get('id_pedido', type=int))
         valor = request.form.get('valor', type=float)
         if not valor or valor <= 0 or valor > saldo_pedido(pedido):
-            flash('El abono debe ser mayor a cero y no superar el saldo pendiente.', 'danger')
+            flash('El pago debe ser mayor a cero y no superar el saldo pendiente.', 'danger')
         else:
             db.session.add(Pago(id_pedido=pedido.id_pedido, valor=valor, metodo=request.form['metodo'], observacion=request.form.get('observacion', '').strip()))
-            registrar_historial(pedido, f'Abono registrado por ${valor:,.0f}')
+            registrar_historial(pedido, f'Pago registrado por ${valor:,.0f}')
             db.session.commit()
-            flash('Abono registrado correctamente.', 'success')
+            flash('Pago registrado correctamente.', 'success')
         return redirect(url_for('pagos'))
     pedidos = Pedido.query.order_by(Pedido.fecha_pedido.desc()).all()
     return render_template('pagos.html', pedidos=pedidos, saldo_pedido=saldo_pedido)

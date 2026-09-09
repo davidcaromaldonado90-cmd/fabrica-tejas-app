@@ -8,7 +8,6 @@
   <div class="btn-group" role="group">{% for clave, etiqueta in periodos.items() %}<a href="{{ url_for('reportes', periodo=clave) }}" class="btn btn-sm {% if periodo == clave %}btn-primary{% else %}btn-light{% endif %}">{{ etiqueta }}</a>{% endfor %}</div>
 </section>
 <div class="d-flex justify-content-end gap-2 mb-3"><a href="{{ url_for('exportar_reporte', formato='excel') }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</a><a href="{{ url_for('exportar_reporte', formato='pdf') }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a></div>
-<div class="d-flex flex-wrap gap-2 mb-4"><a href="{{ url_for('calendario') }}" class="btn btn-light btn-sm"><i class="bi bi-calendar-week me-1"></i>Calendario de entregas</a>{% if rol in ('Administrador', 'Operario') %}<a href="{{ url_for('inventario') }}" class="btn btn-light btn-sm"><i class="bi bi-boxes me-1"></i>Inventario</a>{% endif %}{% if rol == 'Administrador' %}<a href="{{ url_for('pagos') }}" class="btn btn-light btn-sm"><i class="bi bi-cash-coin me-1"></i>Pagos y saldos</a>{% endif %}</div>
 <div class="row g-3 mb-4">
   <div class="col-sm-6 col-xl-3"><article class="content-card p-4 report-kpi"><span class="report-kpi-icon"><i class="bi bi-receipt"></i></span><small>Pedidos</small><strong>{{ metricas['Pedidos'] }}</strong><span>en el período</span></article></div>
   {% if rol != 'Operario' %}
