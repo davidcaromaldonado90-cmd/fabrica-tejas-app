@@ -35,7 +35,7 @@
   </main>
 </div>
 <nav class="mobile-nav" aria-label="Navegación móvil"><a href="/panel"><i class="bi bi-grid-1x2"></i><span>Panel</span></a><a href="/pedidos"><i class="bi bi-receipt"></i><span>Pedidos</span></a>{% if rol != 'Cliente' %}<a href="/calendario"><i class="bi bi-calendar3"></i><span>Calendario</span></a>{% endif %}{% if rol == 'Administrador' %}<a href="/pagos"><i class="bi bi-cash-coin"></i><span>Pagos</span></a>{% endif %}</nav>
-<script>document.getElementById('fecha').textContent = new Intl.DateTimeFormat('es-CO',{day:'numeric',month:'short',year:'numeric'}).format(new Date())</script>
+<script>document.getElementById('fecha').textContent=new Intl.DateTimeFormat('es-CO',{day:'numeric',month:'short',year:'numeric'}).format(new Date());document.querySelectorAll('.primary-nav a,.mobile-nav a').forEach(enlace=>{if(enlace.getAttribute('href')===location.pathname)enlace.classList.add('is-active')})</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
