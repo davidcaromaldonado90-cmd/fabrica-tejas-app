@@ -1,1 +1,33 @@
-{% extends "base.html" %}{% block titulo %}Mi panel | LAMINAS Y TABLEROS MONTOYA{% endblock %}{% block encabezado %}Hola, {{ session['usuario_nombre'] }}{% endblock %}{% block subtitulo %}Panel de {{ rol|lower }} · Consulta la información disponible para tu perfil.{% endblock %}{% block contenido %}<div class="d-flex justify-content-between align-items-center mb-3"><span class="badge-soft"><i class="bi bi-person-badge"></i>{{ rol }}</span><a href="/cerrar-sesion" class="btn btn-light" onclick="return confirm('¿Deseas cerrar la sesión en este dispositivo?')"><i class="bi bi-box-arrow-right me-1"></i>Cerrar sesión</a></div><div class="session-notice mb-4"><span class="session-notice-icon"><i class="bi bi-shield-check"></i></span><div><strong>Tu sesión permanecerá activa</strong><p>No tendrás que iniciar sesión nuevamente durante 30 días en este dispositivo. Si es un equipo compartido, recuerda cerrar sesión al terminar.</p></div><button class="notice-close" type="button" onclick="this.parentElement.remove()" aria-label="Cerrar aviso"><i class="bi bi-x-lg"></i></button></div><div class="row g-3">{% for titulo, valor in datos.items() %}<div class="col-md-4"><article class="content-card p-4 h-100 stat-card"><div class="text-secondary small text-uppercase fw-bold" style="letter-spacing:.8px">{{ titulo }}</div><div class="mt-2 fs-3 fw-bold" style="color:#c95d26">{{ valor }}</div></article></div>{% endfor %}</div><section class="content-card p-4 mt-4 action-card"><h2 class="h5 fw-bold">Acciones disponibles</h2><p class="text-secondary mb-3">{% if rol == 'Administrador' %}Gestiona usuarios, clientes, productos y pedidos desde este panel.{% elif rol == 'Operario' %}Consulta los pedidos de fábrica y avanza su proceso de producción.{% elif rol == 'Vendedor' %}Registra pedidos, consulta tus ventas y actualiza la información de tus clientes.{% else %}Aquí podrás consultar tus pedidos y comunicarte con nuestro equipo comercial.{% endif %}</p>{% if rol == 'Administrador' %}<a href="/usuarios" class="btn btn-primary me-2"><i class="bi bi-people-fill me-1"></i>Gestionar usuarios</a><a href="/administracion" class="btn btn-light"><i class="bi bi-grid me-1"></i>Administración</a>{% elif rol == 'Operario' %}<a href="/pedidos" class="btn btn-primary"><i class="bi bi-receipt me-1"></i>Ver pedidos</a>{% elif rol == 'Vendedor' %}<a href="/nuevo_pedido" class="btn btn-primary me-2"><i class="bi bi-plus-circle me-1"></i>Registrar pedido</a><a href="/pedidos" class="btn btn-light"><i class="bi bi-bar-chart me-1"></i>Ver mis ventas</a>{% else %}<a href="/empresa#contacto" class="btn btn-primary"><i class="bi bi-chat-dots me-1"></i>Solicitar información</a>{% endif %}</section>{% endblock %}
+{% extends "base.html" %}
+{% block titulo %}Mi panel | LAMINAS Y TABLEROS MONTOYA{% endblock %}
+{% block encabezado %}Hola, {{ session['usuario_nombre'] }}{% endblock %}
+{% block subtitulo %}Panel de {{ rol|lower }} · Consulta la información disponible para tu perfil.{% endblock %}
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <span class="badge-soft"><i class="bi bi-person-badge"></i>{{ rol }}</span>
+  <a href="/cerrar-sesion" class="btn btn-light" onclick="return confirm('¿Deseas cerrar la sesión en este dispositivo?')"><i class="bi bi-box-arrow-right me-1"></i>Cerrar sesión</a>
+</div>
+<div class="session-notice mb-4">
+  <span class="session-notice-icon"><i class="bi bi-shield-check"></i></span>
+  <div><strong>Tu sesión permanecerá activa</strong><p>No tendrás que iniciar sesión nuevamente durante 30 días en este dispositivo. Si es un equipo compartido, recuerda cerrar sesión al terminar.</p></div>
+  <button class="notice-close" type="button" onclick="this.parentElement.remove()" aria-label="Cerrar aviso"><i class="bi bi-x-lg"></i></button>
+</div>
+<div class="row g-3">
+  {% for titulo, valor in datos.items() %}
+  <div class="col-md-4"><article class="content-card p-4 h-100 stat-card"><div class="text-secondary small text-uppercase fw-bold" style="letter-spacing:.8px">{{ titulo }}</div><div class="mt-2 fs-3 fw-bold">{{ valor }}</div></article></div>
+  {% endfor %}
+</div>
+<section class="content-card p-4 mt-4 action-card">
+  <h2 class="h5 fw-bold">Acciones disponibles</h2>
+  <p class="text-secondary mb-3">{% if rol == 'Administrador' %}Gestiona usuarios, clientes, productos y pedidos desde este panel.{% elif rol == 'Operario' %}Consulta los pedidos de fábrica y avanza su proceso de producción.{% elif rol == 'Vendedor' %}Registra pedidos, consulta tus ventas y actualiza la información de tus clientes.{% else %}Aquí podrás consultar tus pedidos y comunicarte con nuestro equipo comercial.{% endif %}</p>
+  {% if rol == 'Administrador' %}
+  <a href="/usuarios" class="btn btn-primary me-2"><i class="bi bi-people-fill me-1"></i>Gestionar usuarios</a><a href="/reportes" class="btn btn-light"><i class="bi bi-bar-chart me-1"></i>Ver reportes</a>
+  {% elif rol == 'Operario' %}
+  <a href="/pedidos" class="btn btn-primary me-2"><i class="bi bi-receipt me-1"></i>Ver pedidos</a><a href="/reportes" class="btn btn-light"><i class="bi bi-bar-chart me-1"></i>Ver reportes</a>
+  {% elif rol == 'Vendedor' %}
+  <a href="/nuevo_pedido" class="btn btn-primary me-2"><i class="bi bi-plus-circle me-1"></i>Registrar pedido</a><a href="/reportes" class="btn btn-light"><i class="bi bi-bar-chart me-1"></i>Mis reportes</a>
+  {% else %}
+  <a href="/empresa#contacto" class="btn btn-primary"><i class="bi bi-chat-dots me-1"></i>Solicitar información</a>
+  {% endif %}
+</section>
+{% endblock %}

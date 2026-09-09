@@ -7,7 +7,7 @@
   <div><strong><i class="bi bi-calendar3 me-2 text-primary"></i>Período de análisis</strong><span class="d-block text-secondary small mt-1">Las cifras se calculan según la fecha de entrega registrada.</span></div>
   <div class="btn-group" role="group">{% for clave, etiqueta in periodos.items() %}<a href="{{ url_for('reportes', periodo=clave) }}" class="btn btn-sm {% if periodo == clave %}btn-primary{% else %}btn-light{% endif %}">{{ etiqueta }}</a>{% endfor %}</div>
 </section>
-<div class="d-flex justify-content-end gap-2 mb-3"><a href="{{ url_for('exportar_reporte', formato='excel') }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</a><a href="{{ url_for('exportar_reporte', formato='pdf') }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a></div>
+<div class="d-flex justify-content-end gap-2 mb-3"><a href="{{ url_for('exportar_reporte', formato='excel', periodo=periodo) }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</a><a href="{{ url_for('exportar_reporte', formato='pdf', periodo=periodo) }}" class="btn btn-light btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a></div>
 <div class="row g-3 mb-4">
   <div class="col-sm-6 col-xl-3"><article class="content-card p-4 report-kpi"><span class="report-kpi-icon"><i class="bi bi-receipt"></i></span><small>Pedidos</small><strong>{{ metricas['Pedidos'] }}</strong><span>en el período</span></article></div>
   {% if rol != 'Operario' %}

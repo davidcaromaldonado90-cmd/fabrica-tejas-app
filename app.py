@@ -423,7 +423,13 @@ def historial_pedido(id):
 @app.route('/reportes/exportar/<formato>')
 @roles_requeridos('Administrador', 'Operario', 'Vendedor')
 def exportar_reporte(formato):
-    pedidos = consulta_por_rol().order_by(Pedido.fecha_pedido.desc()).all()
+    periodo = request.args.get('periodo', '30')
+    if periodo not in ('7', '30', '90', 'todos'):
+        periodo = '30'
+    consulta = consulta_por_rol()
+    if periodo != 'todos':
+        consulta = consulta.filter(Pedido.fecha_pedido >= date.today() - timedelta(days=int(periodo) - 1))
+    pedidos = consulta.order_by(Pedido.fecha_pedido.desc()).all()
     filas = [(p.id_pedido, p.cliente.nombre_razon_social, p.fecha_pedido, p.estado, float(p.total_pedido or 0)) for p in pedidos]
     mostrar_valor = session['usuario_rol'] != 'Operario'
     encabezados = ['Pedido', 'Cliente', 'Entrega', 'Estado'] + (['Valor'] if mostrar_valor else [])
