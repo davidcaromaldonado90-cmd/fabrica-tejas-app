@@ -1,9 +1,10 @@
 import os
+from io import BytesIO
 from functools import wraps
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -86,6 +87,56 @@ class SolicitudRecuperacion(db.Model):
     estado = db.Column(db.Enum('Pendiente', 'Atendida'), nullable=False, default='Pendiente')
 
 
+class Inventario(db.Model):
+    __tablename__ = 'inventario'
+    id_inventario = db.Column(db.Integer, primary_key=True)
+    id_producto = db.Column(db.Integer, db.ForeignKey('productos.id_producto'), nullable=False)
+    color = db.Column(db.String(50), nullable=False, default='General')
+    cantidad_actual = db.Column(db.Integer, nullable=False, default=0)
+    minimo = db.Column(db.Integer, nullable=False, default=0)
+    producto = db.relationship('Producto', backref='existencias')
+    __table_args__ = (db.UniqueConstraint('id_producto', 'color', name='uq_inventario_producto_color'),)
+
+
+class MovimientoInventario(db.Model):
+    __tablename__ = 'movimientos_inventario'
+    id_movimiento = db.Column(db.Integer, primary_key=True)
+    id_inventario = db.Column(db.Integer, db.ForeignKey('inventario.id_inventario'), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'), nullable=True)
+    tipo = db.Column(db.Enum('Entrada', 'Salida'), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)
+    motivo = db.Column(db.String(180), nullable=False)
+    fecha = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(ZoneInfo('America/Bogota')).replace(tzinfo=None))
+    inventario = db.relationship('Inventario', backref='movimientos')
+
+
+class Pago(db.Model):
+    __tablename__ = 'pagos'
+    id_pago = db.Column(db.Integer, primary_key=True)
+    id_pedido = db.Column(db.Integer, db.ForeignKey('pedidos.id_pedido'), nullable=False)
+    valor = db.Column(db.Numeric(10, 2), nullable=False)
+    metodo = db.Column(db.String(50), nullable=False)
+    observacion = db.Column(db.String(180))
+    fecha = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(ZoneInfo('America/Bogota')).replace(tzinfo=None))
+    pedido = db.relationship('Pedido', backref='pagos')
+
+
+class HistorialPedido(db.Model):
+    __tablename__ = 'historial_pedidos'
+    id_historial = db.Column(db.Integer, primary_key=True)
+    id_pedido = db.Column(db.Integer, db.ForeignKey('pedidos.id_pedido'), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'), nullable=True)
+    accion = db.Column(db.String(160), nullable=False)
+    fecha = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(ZoneInfo('America/Bogota')).replace(tzinfo=None))
+    pedido = db.relationship('Pedido', backref='historial')
+    usuario = db.relationship('Usuario')
+
+
+# Crea las nuevas tablas auxiliares sin modificar las tablas ya existentes.
+with app.app_context():
+    db.create_all()
+
+
 # ---------- SEGURIDAD Y ROLES ----------
 
 def login_requerido(vista):
@@ -111,6 +162,21 @@ def roles_requeridos(*roles):
             return vista(*args, **kwargs)
         return vista_protegida
     return decorador
+
+
+def registrar_historial(pedido, accion):
+    db.session.add(HistorialPedido(id_pedido=pedido.id_pedido, id_usuario=session.get('usuario_id'), accion=accion))
+
+
+def saldo_pedido(pedido):
+    return max(0, float(pedido.total_pedido or 0) - sum(float(pago.valor) for pago in pedido.pagos))
+
+
+def consulta_por_rol():
+    consulta = Pedido.query
+    if session.get('usuario_rol') == 'Vendedor':
+        consulta = consulta.filter(Pedido.id_vendedor == session['usuario_id'])
+    return consulta
 
 # ---------- RUTAS: CLIENTES ----------
 
@@ -228,9 +294,7 @@ def reportes():
     if periodo not in periodos:
         periodo = '30'
 
-    consulta = Pedido.query
-    if rol == 'Vendedor':
-        consulta = consulta.filter(Pedido.id_vendedor == session['usuario_id'])
+    consulta = consulta_por_rol()
     if periodo != 'todos':
         consulta = consulta.filter(Pedido.fecha_pedido >= date.today() - timedelta(days=int(periodo) - 1))
     pedidos_periodo = consulta.order_by(Pedido.fecha_pedido.asc()).all()
@@ -239,12 +303,14 @@ def reportes():
     total_pedidos = len(pedidos_periodo)
     por_estado = {estado: 0 for estado in ('Pendiente', 'Listo para entrega', 'Entregado')}
     ventas_por_dia = {}
+    pedidos_por_dia = {}
     productos = {}
     clientes = {}
     for pedido in pedidos_periodo:
         por_estado[pedido.estado] = por_estado.get(pedido.estado, 0) + 1
         dia = pedido.fecha_pedido.strftime('%d %b')
         ventas_por_dia[dia] = ventas_por_dia.get(dia, 0) + float(pedido.total_pedido or 0)
+        pedidos_por_dia[dia] = pedidos_por_dia.get(dia, 0) + 1
         nombre_cliente = pedido.cliente.nombre_razon_social
         clientes[nombre_cliente] = clientes.get(nombre_cliente, 0) + float(pedido.total_pedido or 0)
         for detalle in pedido.detalles:
@@ -255,17 +321,128 @@ def reportes():
 
     top_productos = sorted(productos.items(), key=lambda item: item[1]['metros'], reverse=True)[:5]
     top_clientes = sorted(clientes.items(), key=lambda item: item[1], reverse=True)[:5]
-    metricas = {
-        'Pedidos': total_pedidos,
-        'Valor total': total_ventas,
-        'Ticket promedio': total_ventas / total_pedidos if total_pedidos else 0,
-        'Metros solicitados': sum(item['metros'] for item in productos.values()),
-    }
+    metricas = {'Pedidos': total_pedidos, 'Metros solicitados': sum(item['metros'] for item in productos.values())}
+    if rol != 'Operario':
+        metricas.update({'Valor total': total_ventas, 'Ticket promedio': total_ventas / total_pedidos if total_pedidos else 0})
     return render_template(
         'reportes.html', rol=rol, periodo=periodo, periodos=periodos, metricas=metricas,
-        por_estado=por_estado, ventas_labels=list(ventas_por_dia.keys()), ventas_data=list(ventas_por_dia.values()),
+        por_estado=por_estado, ventas_labels=list(ventas_por_dia.keys()),
+        ventas_data=list(pedidos_por_dia.values()) if rol == 'Operario' else list(ventas_por_dia.values()),
         top_productos=top_productos, top_clientes=top_clientes
     )
+
+
+@app.route('/inventario', methods=['GET', 'POST'])
+@roles_requeridos('Administrador', 'Operario')
+def inventario():
+    if request.method == 'POST':
+        if session['usuario_rol'] != 'Administrador':
+            flash('Solo Administración puede registrar movimientos de inventario.', 'danger')
+            return redirect(url_for('inventario'))
+        item = Inventario.query.get_or_404(request.form.get('id_inventario', type=int))
+        cantidad = request.form.get('cantidad', type=int)
+        if not cantidad or cantidad <= 0:
+            flash('Indica una cantidad válida.', 'danger')
+            return redirect(url_for('inventario'))
+        tipo = request.form['tipo']
+        if tipo == 'Salida' and item.cantidad_actual < cantidad:
+            flash('No hay existencias suficientes para registrar la salida.', 'danger')
+            return redirect(url_for('inventario'))
+        item.cantidad_actual += cantidad if tipo == 'Entrada' else -cantidad
+        db.session.add(MovimientoInventario(id_inventario=item.id_inventario, id_usuario=session['usuario_id'], tipo=tipo, cantidad=cantidad, motivo=request.form['motivo'].strip() or 'Ajuste manual'))
+        db.session.commit()
+        flash('Movimiento de inventario registrado.', 'success')
+        return redirect(url_for('inventario'))
+    productos = Producto.query.order_by(Producto.tipo_estilo).all()
+    items = Inventario.query.join(Producto).order_by(Producto.tipo_estilo, Inventario.color).all()
+    return render_template('inventario.html', items=items, productos=productos)
+
+
+@app.route('/inventario/nuevo', methods=['POST'])
+@roles_requeridos('Administrador')
+def nuevo_item_inventario():
+    producto_id = request.form.get('id_producto', type=int)
+    color = request.form['color'].strip() or 'General'
+    if Inventario.query.filter_by(id_producto=producto_id, color=color).first():
+        flash('Ya existe inventario para ese producto y color.', 'warning')
+    else:
+        db.session.add(Inventario(id_producto=producto_id, color=color, cantidad_actual=request.form.get('cantidad_actual', type=int) or 0, minimo=request.form.get('minimo', type=int) or 0))
+        db.session.commit()
+        flash('Referencia agregada al inventario.', 'success')
+    return redirect(url_for('inventario'))
+
+
+@app.route('/calendario')
+@roles_requeridos('Administrador', 'Operario', 'Vendedor')
+def calendario():
+    inicio = date.today()
+    pedidos = consulta_por_rol().filter(Pedido.fecha_pedido.between(inicio, inicio + timedelta(days=30))).order_by(Pedido.fecha_pedido).all()
+    return render_template('calendario.html', pedidos=pedidos, hoy=inicio)
+
+
+@app.route('/pagos', methods=['GET', 'POST'])
+@roles_requeridos('Administrador')
+def pagos():
+    if request.method == 'POST':
+        pedido = Pedido.query.get_or_404(request.form.get('id_pedido', type=int))
+        valor = request.form.get('valor', type=float)
+        if not valor or valor <= 0 or valor > saldo_pedido(pedido):
+            flash('El abono debe ser mayor a cero y no superar el saldo pendiente.', 'danger')
+        else:
+            db.session.add(Pago(id_pedido=pedido.id_pedido, valor=valor, metodo=request.form['metodo'], observacion=request.form.get('observacion', '').strip()))
+            registrar_historial(pedido, f'Abono registrado por ${valor:,.0f}')
+            db.session.commit()
+            flash('Abono registrado correctamente.', 'success')
+        return redirect(url_for('pagos'))
+    pedidos = Pedido.query.order_by(Pedido.fecha_pedido.desc()).all()
+    return render_template('pagos.html', pedidos=pedidos, saldo_pedido=saldo_pedido)
+
+
+@app.route('/pedidos/<int:id>/historial')
+@roles_requeridos('Administrador', 'Operario', 'Vendedor')
+def historial_pedido(id):
+    pedido = Pedido.query.get_or_404(id)
+    if session['usuario_rol'] == 'Vendedor' and pedido.id_vendedor != session['usuario_id']:
+        flash('Solo puedes consultar el historial de tus pedidos.', 'danger')
+        return redirect(url_for('ver_pedidos'))
+    return render_template('historial_pedido.html', pedido=pedido)
+
+
+@app.route('/reportes/exportar/<formato>')
+@roles_requeridos('Administrador', 'Operario', 'Vendedor')
+def exportar_reporte(formato):
+    pedidos = consulta_por_rol().order_by(Pedido.fecha_pedido.desc()).all()
+    filas = [(p.id_pedido, p.cliente.nombre_razon_social, p.fecha_pedido, p.estado, float(p.total_pedido or 0)) for p in pedidos]
+    mostrar_valor = session['usuario_rol'] != 'Operario'
+    encabezados = ['Pedido', 'Cliente', 'Entrega', 'Estado'] + (['Valor'] if mostrar_valor else [])
+    if formato == 'excel':
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        libro = Workbook(); hoja = libro.active; hoja.title = 'Reporte de pedidos'
+        hoja.append(encabezados)
+        for celda in hoja[1]:
+            celda.font = Font(bold=True, color='FFFFFF'); celda.fill = PatternFill('solid', fgColor='1279C9')
+        for fila in filas:
+            hoja.append(fila if mostrar_valor else fila[:-1])
+        for columna in hoja.columns:
+            hoja.column_dimensions[columna[0].column_letter].width = min(max(len(str(c.value or '')) for c in columna) + 3, 35)
+        salida = BytesIO(); libro.save(salida); salida.seek(0)
+        return send_file(salida, as_attachment=True, download_name='reporte_pedidos.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    if formato == 'pdf':
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        salida = BytesIO(); documento = SimpleDocTemplate(salida, pagesize=letter)
+        estilos = getSampleStyleSheet(); data = [encabezados]
+        for fila in filas:
+            data.append([fila[0], fila[1], fila[2].strftime('%d/%m/%Y'), fila[3]] + ([f'${fila[4]:,.0f}'] if mostrar_valor else []))
+        tabla = Table(data, repeatRows=1, colWidths=[55, 190, 80, 105] + ([80] if mostrar_valor else []))
+        tabla.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('FONTSIZE', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 7), ('TOPPADDING', (0, 0), (-1, -1), 7)]))
+        documento.build([Paragraph('LAMINAS Y TABLEROS MONTOYA', estilos['Title']), Paragraph('Reporte de pedidos', estilos['Heading2']), Spacer(1, 12), tabla])
+        salida.seek(0)
+        return send_file(salida, as_attachment=True, download_name='reporte_pedidos.pdf', mimetype='application/pdf')
+    return redirect(url_for('reportes'))
 
 
 @app.route('/mis-pedidos')
@@ -518,8 +695,26 @@ def actualizar_estado_pedido(id):
 
     if nuevo_estado not in estados_validos:
         flash('El estado seleccionado no es válido.', 'danger')
+    elif nuevo_estado == 'Listo para entrega' and pedido.estado == 'Pendiente':
+        faltantes = []
+        for detalle in pedido.detalles:
+            item = Inventario.query.filter_by(id_producto=detalle.id_producto, color=detalle.color).first() or Inventario.query.filter_by(id_producto=detalle.id_producto, color='General').first()
+            if not item or item.cantidad_actual < detalle.cantidad:
+                faltantes.append(detalle.producto.tipo_estilo)
+        if faltantes:
+            flash('No hay existencias suficientes para producción: ' + ', '.join(faltantes) + '.', 'danger')
+            return redirect(url_for('ver_pedidos'))
+        for detalle in pedido.detalles:
+            item = Inventario.query.filter_by(id_producto=detalle.id_producto, color=detalle.color).first() or Inventario.query.filter_by(id_producto=detalle.id_producto, color='General').first()
+            item.cantidad_actual -= detalle.cantidad
+            db.session.add(MovimientoInventario(id_inventario=item.id_inventario, id_usuario=session['usuario_id'], tipo='Salida', cantidad=detalle.cantidad, motivo=f'Producción pedido #{pedido.id_pedido}'))
+        pedido.estado = nuevo_estado
+        registrar_historial(pedido, 'Pedido enviado a despacho. Inventario descontado.')
+        db.session.commit()
+        flash(f'El pedido #{pedido.id_pedido} ahora está: {nuevo_estado}.', 'success')
     else:
         pedido.estado = nuevo_estado
+        registrar_historial(pedido, f'Estado actualizado a {nuevo_estado}')
         db.session.commit()
         flash(f'El pedido #{pedido.id_pedido} ahora está: {nuevo_estado}.', 'success')
     return redirect(url_for('ver_pedidos'))
@@ -565,6 +760,7 @@ def guardar_pedido():
                                          color=color.strip(), medida_metros=medida, cantidad=cantidad, subtotal=subtotal))
             total += subtotal
         nuevo_pedido.total_pedido = total
+        registrar_historial(nuevo_pedido, 'Pedido registrado')
         db.session.commit()
     except (ValueError, TypeError):
         db.session.rollback()
@@ -614,6 +810,7 @@ def editar_pedido(id):
                                              color=color.strip(), medida_metros=medida, cantidad=cantidad, subtotal=subtotal))
                 total += subtotal
             pedido.total_pedido = total
+            registrar_historial(pedido, 'Pedido actualizado')
             db.session.commit()
         except (ValueError, TypeError):
             db.session.rollback()

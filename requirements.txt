@@ -2,3 +2,5 @@ Flask
 Flask-SQLAlchemy
 PyMySQL
 gunicorn
+openpyxl
+reportlab
