@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block titulo %}Error del sistema{% endblock %}
+{% block encabezado %}Ocurrió un error{% endblock %}
+{% block subtitulo %}El incidente fue registrado. Intenta nuevamente o contacta al administrador.{% endblock %}
+{% block contenido %}<section class="content-card p-4"><a href="{{ url_for('panel') }}" class="btn btn-primary">Volver al panel</a></section>{% endblock %}

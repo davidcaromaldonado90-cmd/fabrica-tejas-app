@@ -1,2 +1,32 @@
 {% extends "base.html" %}{% block titulo %}Calendario | LAMINAS Y TABLEROS MONTOYA{% endblock %}{% block encabezado %}Calendario de entregas{% endblock %}{% block subtitulo %}Planifica entregas y detecta prioridades de producción.{% endblock %}{% block contenido %}
-<section class="calendar-card content-card"><header class="calendar-toolbar"><a class="btn btn-light btn-sm" href="{{ url_for('calendario', anio=anterior.year, mes=anterior.month) }}"><i class="bi bi-chevron-left"></i></a><div><h2>{{ primer_dia.strftime('%B').capitalize() }} {{ anio }}</h2><a href="{{ url_for('calendario') }}">Volver a hoy</a></div><a class="btn btn-light btn-sm" href="{{ url_for('calendario', anio=siguiente.year, mes=siguiente.month) }}"><i class="bi bi-chevron-right"></i></a></header><div class="calendar-weekdays">{% for dia in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div>{{ dia }}</div>{% endfor %}</div><div class="calendar-grid">{% for _ in range(inicio_semana) %}<div class="calendar-day muted"></div>{% endfor %}{% for dia in range(1,dias_mes+1) %}{% set clave='%04d-%02d-%02d'|format(anio,mes,dia) %}<div class="calendar-day {% if clave==hoy.isoformat() %}today{% endif %}"><span class="day-number">{{ dia }}</span>{% for p in pedidos_por_fecha.get(clave, []) %}<a href="{{ url_for('ver_pedido', id=p.id_pedido) }}" class="calendar-event event-{{ 'ready' if p.estado=='Listo para entrega' else 'done' if p.estado=='Entregado' else 'pending' }}">#{{ p.id_pedido }} · {{ p.cliente.nombre_razon_social }}</a>{% endfor %}</div>{% endfor %}</div></section><div class="calendar-legend"><span><i class="event-pending"></i>Pendiente</span><span><i class="event-ready"></i>Listo para entrega</span><span><i class="event-done"></i>Entregado</span></div>{% endblock %}
+<section class="calendar-card content-card">
+<header class="calendar-toolbar">
+<a class="btn btn-light btn-sm" href="{{ url_for('calendario', anio=anterior.year, mes=anterior.month) }}">
+<i class="bi bi-chevron-left">
+</i>
+</a>
+<div>
+<h2>{{ primer_dia.strftime('%B').capitalize() }} {{ anio }}</h2>
+<a href="{{ url_for('calendario') }}">Volver a hoy</a>
+</div>
+<a class="btn btn-light btn-sm" href="{{ url_for('calendario', anio=siguiente.year, mes=siguiente.month) }}">
+<i class="bi bi-chevron-right">
+</i>
+</a>
+</header>
+<div class="calendar-weekdays">{% for dia in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div>{{ dia }}</div>{% endfor %}</div>
+<div class="calendar-grid">{% for _ in range(inicio_semana) %}<div class="calendar-day muted">
+</div>{% endfor %}{% for dia in range(1,dias_mes+1) %}{% set clave='%04d-%02d-%02d'|format(anio,mes,dia) %}<div class="calendar-day {% if clave==hoy.isoformat() %}today{% endif %}">
+<span class="day-number">{{ dia }}</span>{% for p in pedidos_por_fecha.get(clave, []) %}<a href="{{ url_for('ver_pedido', id=p.id_pedido) }}" class="calendar-event event-{{ 'ready' if p.estado=='Listo para entrega' else 'done' if p.estado=='Entregado' else 'pending' }}">#{{ p.id_pedido }} · {{ p.cliente.nombre_razon_social }}</a>{% endfor %}</div>{% endfor %}</div>
+</section>
+<div class="calendar-legend">
+<span>
+<i class="event-pending">
+</i>Pendiente</span>
+<span>
+<i class="event-ready">
+</i>Listo para entrega</span>
+<span>
+<i class="event-done">
+</i>Entregado</span>
+</div>{% endblock %}

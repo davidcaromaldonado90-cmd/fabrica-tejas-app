@@ -1,4 +1,5 @@
 import os
+import logging
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, date, timedelta
@@ -7,20 +8,36 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for, send_file
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_migrate import Migrate
 from sqlalchemy import func, text
+from sqlalchemy.engine import URL
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
-DB_USER = os.environ.get('DB_USER', 'root')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', 'Manolo1029')
-DB_HOST = os.environ.get('DB_HOST', 'localhost')
-DB_NAME = os.environ.get('DB_NAME', 'fabrica_tejas')
+required_settings = ('DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_NAME', 'SECRET_KEY')
+missing_settings = [name for name in required_settings if not os.environ.get(name)]
+if missing_settings:
+    raise RuntimeError('Faltan variables de entorno obligatorias: ' + ', '.join(missing_settings))
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}'
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'cambia-esta-clave-antes-de-publicar')
+app.config['SQLALCHEMY_DATABASE_URI'] = URL.create(
+    'mysql+pymysql', username=os.environ['DB_USER'], password=os.environ['DB_PASSWORD'],
+    host=os.environ['DB_HOST'], database=os.environ['DB_NAME']
+)
+app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['RATELIMIT_STORAGE_URI'] = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO'), format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)
+migrate = Migrate(app, db)
+limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
 
 # ---------- MODELOS ----------
 
@@ -32,6 +49,8 @@ class Cliente(db.Model):
     nombre_razon_social = db.Column(db.String(150), nullable=False)
     telefono = db.Column(db.String(20))
     correo = db.Column(db.String(100))
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'), unique=True, nullable=True)
+    usuario = db.relationship('Usuario', backref=db.backref('cliente', uselist=False), foreign_keys=[id_usuario])
 
 
 class Producto(db.Model):
@@ -133,11 +152,6 @@ class HistorialPedido(db.Model):
     usuario = db.relationship('Usuario')
 
 
-# Crea las nuevas tablas auxiliares sin modificar las tablas ya existentes.
-with app.app_context():
-    db.create_all()
-
-
 # ---------- SEGURIDAD Y ROLES ----------
 
 def login_requerido(vista):
@@ -178,6 +192,12 @@ def consulta_por_rol():
     if session.get('usuario_rol') == 'Vendedor':
         consulta = consulta.filter(Pedido.id_vendedor == session['usuario_id'])
     return consulta
+
+
+@app.errorhandler(500)
+def error_interno(error):
+    app.logger.exception('Error no controlado: %s', error)
+    return render_template('error.html'), 500
 
 # ---------- RUTAS: CLIENTES ----------
 
@@ -220,11 +240,21 @@ def crear_cuenta():
             flash('La contraseña debe tener al menos 8 caracteres.', 'danger')
             return redirect(url_for('crear_cuenta'))
 
+        identificacion = request.form['numero_identificacion'].strip()
+        if Cliente.query.filter_by(numero_identificacion=identificacion).first():
+            flash('Ya existe un cliente con ese número de identificación.', 'danger')
+            return redirect(url_for('crear_cuenta'))
         usuario = Usuario(
             nombre=request.form['nombre'].strip(), correo=correo,
             password_hash=generate_password_hash(request.form['password']), rol='Cliente'
         )
         db.session.add(usuario)
+        db.session.flush()
+        db.session.add(Cliente(
+            tipo_persona=request.form['tipo_persona'], numero_identificacion=identificacion,
+            nombre_razon_social=usuario.nombre, telefono=request.form['telefono'].strip(),
+            correo=correo, id_usuario=usuario.id_usuario
+        ))
         db.session.commit()
         flash('Tu cuenta fue creada. Ya puedes iniciar sesión.', 'success')
         return redirect(url_for('iniciar_sesion'))
@@ -232,20 +262,24 @@ def crear_cuenta():
 
 
 @app.route('/iniciar-sesion', methods=['GET', 'POST'])
+@limiter.limit('5 per minute')
 def iniciar_sesion():
     if request.method == 'POST':
         usuario = Usuario.query.filter_by(correo=request.form['correo'].strip().lower()).first()
         if usuario and check_password_hash(usuario.password_hash, request.form['password']):
             session.clear()
+            session.permanent = True
             session['usuario_id'] = usuario.id_usuario
             session['usuario_nombre'] = usuario.nombre
             session['usuario_rol'] = usuario.rol
             return redirect(url_for('panel'))
+        app.logger.warning('Intento de inicio de sesión fallido para %s desde %s', request.form['correo'].strip().lower(), get_remote_address())
         flash('Correo o contraseña incorrectos.', 'danger')
     return render_template('acceso.html', modo='login')
 
 
 @app.route('/recuperar-contrasena', methods=['GET', 'POST'])
+@limiter.limit('5 per minute')
 def recuperar_contrasena():
     if request.method == 'POST':
         correo = request.form['correo'].strip().lower()
@@ -287,7 +321,7 @@ def panel():
         pedidos_vendedor = Pedido.query.filter_by(id_vendedor=session['usuario_id'])
         datos = {'Pedidos registrados': pedidos_vendedor.count(), 'Pendientes': pedidos_vendedor.filter_by(estado='Pendiente').count(), 'Listos para entrega': pedidos_vendedor.filter_by(estado='Listo para entrega').count()}
     else:
-        cliente = Cliente.query.filter_by(correo=Usuario.query.get(session['usuario_id']).correo).first()
+        cliente = Cliente.query.filter_by(id_usuario=session['usuario_id']).first()
         pedidos_cliente = Pedido.query.filter_by(id_cliente=cliente.id_cliente).count() if cliente else 0
         datos = {'Mis pedidos': pedidos_cliente, 'Estado de cuenta': 'Activo', 'Atención': 'Contáctanos para cotizar'}
     return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual)
@@ -531,8 +565,7 @@ def exportar_reporte(formato):
 @app.route('/mis-pedidos')
 @roles_requeridos('Cliente')
 def mis_pedidos():
-    usuario = Usuario.query.get(session['usuario_id'])
-    cliente = Cliente.query.filter_by(correo=usuario.correo).first()
+    cliente = Cliente.query.filter_by(id_usuario=session['usuario_id']).first()
     pedidos = Pedido.query.filter_by(id_cliente=cliente.id_cliente).order_by(Pedido.fecha_pedido.desc()).all() if cliente else []
     return render_template('mis_pedidos.html', pedidos=pedidos, cliente_registrado=cliente is not None)
 
@@ -554,6 +587,7 @@ def actualizar_rol(id):
     elif usuario.id_usuario == session['usuario_id'] and nuevo_rol != 'Administrador':
         flash('No puedes quitarte tu propio rol de administrador.', 'danger')
     else:
+        app.logger.info('Cambio de rol: usuario=%s, nuevo_rol=%s, administrador=%s', usuario.id_usuario, nuevo_rol, session['usuario_id'])
         usuario.rol = nuevo_rol
         db.session.commit()
         flash(f'El rol de {usuario.nombre} fue actualizado.', 'success')
@@ -571,6 +605,7 @@ def eliminar_usuario(id):
     elif Pedido.query.filter_by(id_vendedor=usuario.id_usuario).first():
         flash(f'No puedes eliminar a {usuario.nombre} porque tiene pedidos registrados. Conserva la trazabilidad o reasigna sus pedidos.', 'danger')
     else:
+        app.logger.info('Eliminación de usuario: usuario=%s, administrador=%s', usuario.id_usuario, session['usuario_id'])
         db.session.delete(usuario)
         db.session.commit()
         flash(f'La cuenta de {usuario.nombre} fue eliminada.', 'success')
@@ -595,14 +630,16 @@ def atender_solicitud_recuperacion(id):
 @app.route('/administracion')
 @roles_requeridos('Administrador')
 def inicio():
-    clientes = Cliente.query.all()
+    pagina = request.args.get('pagina', 1, type=int)
+    clientes = Cliente.query.order_by(Cliente.nombre_razon_social).paginate(page=pagina, per_page=25, error_out=False)
     return render_template('clientes.html', clientes=clientes)
 
 
 @app.route('/nuevo_cliente', methods=['GET'])
 @roles_requeridos('Administrador')
 def mostrar_formulario_cliente():
-    return render_template('nuevo_cliente.html', cliente=None)
+    return render_template('nuevo_cliente.html', cliente=None,
+                           usuarios_cliente=Usuario.query.filter_by(rol='Cliente').order_by(Usuario.nombre).all())
 
 
 @app.route('/nuevo_cliente', methods=['POST'])
@@ -613,7 +650,8 @@ def guardar_cliente():
         numero_identificacion=request.form['numero_identificacion'],
         nombre_razon_social=request.form['nombre_razon_social'],
         telefono=request.form['telefono'],
-        correo=request.form['correo']
+        correo=request.form['correo'],
+        id_usuario=request.form.get('id_usuario', type=int) or None
     )
     db.session.add(nuevo)
     db.session.commit()
@@ -623,27 +661,29 @@ def guardar_cliente():
 @app.route('/editar_cliente/<int:id>', methods=['GET'])
 @roles_requeridos('Administrador')
 def mostrar_formulario_editar_cliente(id):
-    cliente = Cliente.query.get(id)
-    return render_template('nuevo_cliente.html', cliente=cliente)
+    cliente = Cliente.query.get_or_404(id)
+    return render_template('nuevo_cliente.html', cliente=cliente, usuarios_cliente=Usuario.query.filter_by(rol='Cliente').order_by(Usuario.nombre).all())
 
 
 @app.route('/editar_cliente/<int:id>', methods=['POST'])
 @roles_requeridos('Administrador')
 def actualizar_cliente(id):
-    cliente = Cliente.query.get(id)
+    cliente = Cliente.query.get_or_404(id)
     cliente.tipo_persona = request.form['tipo_persona']
     cliente.numero_identificacion = request.form['numero_identificacion']
     cliente.nombre_razon_social = request.form['nombre_razon_social']
     cliente.telefono = request.form['telefono']
     cliente.correo = request.form['correo']
+    cliente.id_usuario = request.form.get('id_usuario', type=int) or None
     db.session.commit()
     return redirect('/administracion')
 
 
-@app.route('/eliminar_cliente/<int:id>')
+@app.route('/eliminar_cliente/<int:id>', methods=['POST'])
 @roles_requeridos('Administrador')
 def eliminar_cliente(id):
-    cliente = Cliente.query.get(id)
+    cliente = Cliente.query.get_or_404(id)
+    app.logger.info('Eliminación de cliente: cliente=%s, administrador=%s', cliente.id_cliente, session['usuario_id'])
     db.session.delete(cliente)
     db.session.commit()
     return redirect('/administracion')
@@ -653,7 +693,8 @@ def eliminar_cliente(id):
 @app.route('/productos')
 @roles_requeridos('Administrador')
 def ver_productos():
-    productos = Producto.query.all()
+    pagina = request.args.get('pagina', 1, type=int)
+    productos = Producto.query.order_by(Producto.tipo_estilo).paginate(page=pagina, per_page=25, error_out=False)
     return render_template('productos.html', productos=productos)
 
 
@@ -684,14 +725,14 @@ def guardar_producto():
 @app.route('/editar_producto/<int:id>', methods=['GET'])
 @roles_requeridos('Administrador')
 def mostrar_formulario_editar_producto(id):
-    producto = Producto.query.get(id)
+    producto = Producto.query.get_or_404(id)
     return render_template('nuevo_producto.html', producto=producto)
 
 
 @app.route('/editar_producto/<int:id>', methods=['POST'])
 @roles_requeridos('Administrador')
 def actualizar_producto(id):
-    producto = Producto.query.get(id)
+    producto = Producto.query.get_or_404(id)
     desarrollo_valor = request.form['desarrollo']
     if desarrollo_valor == '':
         desarrollo_valor = None
@@ -704,10 +745,11 @@ def actualizar_producto(id):
     return redirect('/productos')
 
 
-@app.route('/eliminar_producto/<int:id>')
+@app.route('/eliminar_producto/<int:id>', methods=['POST'])
 @roles_requeridos('Administrador')
 def eliminar_producto(id):
-    producto = Producto.query.get(id)
+    producto = Producto.query.get_or_404(id)
+    app.logger.info('Eliminación de producto: producto=%s, administrador=%s', producto.id_producto, session['usuario_id'])
     db.session.delete(producto)
     db.session.commit()
     return redirect('/productos')
@@ -740,7 +782,8 @@ def ver_pedidos():
         consulta = consulta.filter(func.date(Pedido.fecha_registro) == hoy)
     else:
         periodo = 'todos'
-    pedidos = consulta.all()
+    pagina = request.args.get('pagina', 1, type=int)
+    pedidos = consulta.paginate(page=pagina, per_page=25, error_out=False)
 
     resumen = None
     if rol == 'Vendedor':
@@ -909,4 +952,4 @@ def editar_pedido(id):
     return render_template('nuevo_pedido.html', clientes=clientes, productos=productos, vendedores=vendedores, pedido=pedido)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG') == '1')

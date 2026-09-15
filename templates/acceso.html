@@ -21,21 +21,147 @@
   </style>
 </head>
 <body>
-  <div class="ambient"></div>
+  <div class="ambient">
+</div>
   <section class="login-shell">
-    <div class="lamp-scene" aria-hidden="true"><div class="lamp-cord"></div><div class="lamp-shade"><i class="bi bi-lightbulb-fill"></i></div><div class="lamp-light"></div></div>
-    <button class="mascot" type="button" aria-label="Saludar"><span class="mascot-face"><span class="mascot-eye left"></span><span class="mascot-eye right"></span><span class="mascot-smile"></span></span><span class="mascot-hand"></span></button>
+    <div class="lamp-scene" aria-hidden="true">
+<div class="lamp-cord">
+</div>
+<div class="lamp-shade">
+<i class="bi bi-lightbulb-fill">
+</i>
+</div>
+<div class="lamp-light">
+</div>
+</div>
+    <button class="mascot" type="button" aria-label="Saludar">
+<span class="mascot-face">
+<span class="mascot-eye left">
+</span>
+<span class="mascot-eye right">
+</span>
+<span class="mascot-smile">
+</span>
+</span>
+<span class="mascot-hand">
+</span>
+</button>
     <div class="auth-card">
-      <a class="brand" href="/"><i class="bi bi-grid-3x3-gap-fill"></i>LAMINAS Y TABLEROS MONTOYA</a>
+      <a class="brand" href="/">
+<i class="bi bi-grid-3x3-gap-fill">
+</i>LAMINAS Y TABLEROS MONTOYA</a>
       {% with mensajes=get_flashed_messages(with_categories=true) %}{% for categoria,mensaje in mensajes %}<div class="alert">{{ mensaje }}</div>{% endfor %}{% endwith %}
       {% if modo=='login' %}
-      <p class="eyebrow">ACCESO AL SISTEMA</p><h1>Bienvenido de nuevo</h1><p class="intro">Ingresa a tu espacio de gestión.</p><form method="POST"><label class="label">Correo electrónico</label><div class="field"><i class="bi bi-envelope"></i><input class="input" name="correo" type="email" required autocomplete="email"></div><label class="label">Contraseña</label><div class="field"><i class="bi bi-lock"></i><input class="input" name="password" type="password" required autocomplete="current-password"></div><a class="forgot" href="/recuperar-contrasena">¿Olvidaste tu contraseña?</a><button class="button">Iniciar sesión <i class="bi bi-arrow-right ms-1"></i></button></form><p class="footer">¿Aún no tienes cuenta? <a href="/crear-cuenta">Créala aquí</a></p>
+      <p class="eyebrow">ACCESO AL SISTEMA</p>
+<h1>Bienvenido de nuevo</h1>
+<p class="intro">Ingresa a tu espacio de gestión.</p>
+<form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="label">Correo electrónico</label>
+<div class="field">
+<i class="bi bi-envelope">
+</i>
+<input class="input" name="correo" type="email" required autocomplete="email">
+</div>
+<label class="label">Contraseña</label>
+<div class="field">
+<i class="bi bi-lock">
+</i>
+<input class="input" name="password" type="password" required autocomplete="current-password">
+</div>
+<a class="forgot" href="/recuperar-contrasena">¿Olvidaste tu contraseña?</a>
+<button class="button">Iniciar sesión <i class="bi bi-arrow-right ms-1">
+</i>
+</button>
+</form>
+<p class="footer">¿Aún no tienes cuenta? <a href="/crear-cuenta">Créala aquí</a>
+</p>
       {% elif modo=='registro' %}
-      <p class="eyebrow">NUEVA CUENTA</p><h1>Crea tu cuenta</h1><p class="intro">Regístrate para consultar el estado de tus pedidos.</p><form method="POST"><label class="label">Nombre completo</label><div class="field"><i class="bi bi-person"></i><input class="input" name="nombre" required></div><label class="label">Correo electrónico</label><div class="field"><i class="bi bi-envelope"></i><input class="input" name="correo" type="email" required></div><label class="label">Contraseña</label><div class="field"><i class="bi bi-shield-lock"></i><input class="input" name="password" type="password" minlength="8" required></div><button class="button">Crear cuenta <i class="bi bi-person-plus ms-1"></i></button></form><p class="footer">¿Ya tienes cuenta? <a href="/iniciar-sesion">Inicia sesión</a></p>
+      <p class="eyebrow">NUEVA CUENTA</p>
+<h1>Crea tu cuenta</h1>
+<p class="intro">Regístrate para consultar el estado de tus pedidos.</p>
+<form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="label">Nombre completo</label>
+<div class="field">
+<i class="bi bi-person">
+</i>
+<input class="input" name="nombre" required>
+</div>
+<label class="label">Tipo de persona</label>
+<select class="input" name="tipo_persona" required><option value="Natural">Persona natural</option><option value="Juridica">Empresa / jurídica</option></select>
+<label class="label">Número de identificación</label>
+<div class="field"><i class="bi bi-card-text"></i><input class="input" name="numero_identificacion" required></div>
+<label class="label">Teléfono</label>
+<div class="field"><i class="bi bi-phone"></i><input class="input" name="telefono" type="tel" required></div>
+<label class="label">Correo electrónico</label>
+<div class="field">
+<i class="bi bi-envelope">
+</i>
+<input class="input" name="correo" type="email" required>
+</div>
+<label class="label">Contraseña</label>
+<div class="field">
+<i class="bi bi-shield-lock">
+</i>
+<input class="input" name="password" type="password" minlength="8" required>
+</div>
+<button class="button">Crear cuenta <i class="bi bi-person-plus ms-1">
+</i>
+</button>
+</form>
+<p class="footer">¿Ya tienes cuenta? <a href="/iniciar-sesion">Inicia sesión</a>
+</p>
       {% elif modo=='recuperar' %}
-      <p class="eyebrow">RECUPERAR CONTRASEÑA</p><h1>Recupera tu acceso</h1><p class="intro">Indica tu correo. Un administrador atenderá tu solicitud.</p><form method="POST"><label class="label">Correo electrónico</label><div class="field"><i class="bi bi-envelope"></i><input class="input" name="correo" type="email" required></div><button class="button">Enviar solicitud <i class="bi bi-send ms-1"></i></button></form><p class="footer"><a href="/iniciar-sesion">Volver a iniciar sesión</a></p>
+      <p class="eyebrow">RECUPERAR CONTRASEÑA</p>
+<h1>Recupera tu acceso</h1>
+<p class="intro">Indica tu correo. Un administrador atenderá tu solicitud.</p>
+<form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="label">Correo electrónico</label>
+<div class="field">
+<i class="bi bi-envelope">
+</i>
+<input class="input" name="correo" type="email" required>
+</div>
+<button class="button">Enviar solicitud <i class="bi bi-send ms-1">
+</i>
+</button>
+</form>
+<p class="footer">
+<a href="/iniciar-sesion">Volver a iniciar sesión</a>
+</p>
       {% else %}
-      <p class="eyebrow">CONFIGURACIÓN ÚNICA</p><h1>Crea el administrador</h1><p class="intro">Esta cuenta podrá gestionar toda la operación.</p><div class="notice"><i class="bi bi-shield-check me-1"></i>Esta pantalla se desactiva al crear el administrador.</div><form method="POST"><label class="label">Nombre completo</label><div class="field"><i class="bi bi-person"></i><input class="input" name="nombre" required></div><label class="label">Correo electrónico</label><div class="field"><i class="bi bi-envelope"></i><input class="input" name="correo" type="email" required></div><label class="label">Contraseña</label><div class="field"><i class="bi bi-shield-lock"></i><input class="input" name="password" type="password" minlength="8" required></div><button class="button">Crear administrador <i class="bi bi-arrow-right ms-1"></i></button></form>
+      <p class="eyebrow">CONFIGURACIÓN ÚNICA</p>
+<h1>Crea el administrador</h1>
+<p class="intro">Esta cuenta podrá gestionar toda la operación.</p>
+<div class="notice">
+<i class="bi bi-shield-check me-1">
+</i>Esta pantalla se desactiva al crear el administrador.</div>
+<form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="label">Nombre completo</label>
+<div class="field">
+<i class="bi bi-person">
+</i>
+<input class="input" name="nombre" required>
+</div>
+<label class="label">Correo electrónico</label>
+<div class="field">
+<i class="bi bi-envelope">
+</i>
+<input class="input" name="correo" type="email" required>
+</div>
+<label class="label">Contraseña</label>
+<div class="field">
+<i class="bi bi-shield-lock">
+</i>
+<input class="input" name="password" type="password" minlength="8" required>
+</div>
+<button class="button">Crear administrador <i class="bi bi-arrow-right ms-1">
+</i>
+</button>
+</form>
       {% endif %}
     </div>
   </section>
