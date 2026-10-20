@@ -324,12 +324,30 @@ def panel():
             'Entregados': sum(p.estado == 'Entregado' for p in pedidos_mes),
             'Pendientes': sum(p.estado == 'Pendiente' for p in pedidos_mes),
         }
+        # Datos compactos para el tablero visual. Se calculan con registros ya existentes.
+        serie_registros = []
+        for dias_atras in range(6, -1, -1):
+            dia = date.today() - timedelta(days=dias_atras)
+            siguiente_dia = dia + timedelta(days=1)
+            cantidad = Pedido.query.filter(
+                Pedido.fecha_registro >= datetime.combine(dia, datetime.min.time()),
+                Pedido.fecha_registro < datetime.combine(siguiente_dia, datetime.min.time())
+            ).count()
+            serie_registros.append({'dia': dia.strftime('%a').capitalize()[:3], 'cantidad': cantidad, 'es_hoy': dia == date.today()})
+        max_registros = max([registro['cantidad'] for registro in serie_registros] or [1])
         ejecutivo = {
             'cobrado_mes': sum(float(pago.valor or 0) for pago in pagos_mes),
             'por_cobrar': cobro_pendiente,
             'alertas_inventario': alertas_inventario,
             'proximas_entregas': proximas_entregas,
             'pagos_recientes': Pago.query.order_by(Pago.fecha.desc()).limit(5).all(),
+            'actividad_reciente': HistorialPedido.query.order_by(HistorialPedido.fecha.desc()).limit(6).all(),
+            'serie_registros': serie_registros,
+            'max_registros': max_registros,
+            'nuevos_hoy': serie_registros[-1]['cantidad'],
+            'pedidos_pendientes': Pedido.query.filter_by(estado='Pendiente').count(),
+            'pedidos_listos': Pedido.query.filter_by(estado='Listo para entrega').count(),
+            'pedidos_entregados': Pedido.query.filter_by(estado='Entregado').count(),
         }
     elif rol == 'Operario':
         datos = {'Pedidos pendientes': Pedido.query.filter_by(estado='Pendiente').count(), 'Listos para entrega': Pedido.query.filter_by(estado='Listo para entrega').count(), 'Pedidos entregados': Pedido.query.filter_by(estado='Entregado').count()}

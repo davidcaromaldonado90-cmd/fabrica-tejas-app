@@ -22,6 +22,7 @@
 <small>MONTOYA · Gestión de fábrica</small>
 </span>
 </a>
+    <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Minimizar barra lateral" aria-expanded="true" title="Minimizar barra lateral"><i class="bi bi-layout-sidebar-inset"></i></button>
     <nav class="primary-nav" aria-label="Navegación principal">
       <p class="nav-label">PRINCIPAL</p>
 <a href="/panel">
@@ -205,7 +206,13 @@
 </i>
 <span>Reportes</span>
 </a>{% endif %}</nav>
-<script>document.getElementById('fecha').textContent=new Intl.DateTimeFormat('es-CO',{day:'numeric',month:'short',year:'numeric'}).format(new Date());document.querySelectorAll('.primary-nav a,.mobile-nav a').forEach(enlace=>{if(enlace.getAttribute('href')===location.pathname)enlace.classList.add('is-active')})</script>
+<script>
+document.getElementById('fecha').textContent=new Intl.DateTimeFormat('es-CO',{day:'numeric',month:'short',year:'numeric'}).format(new Date());
+document.querySelectorAll('.primary-nav a,.mobile-nav a').forEach(enlace=>{if(enlace.getAttribute('href')===location.pathname)enlace.classList.add('is-active')});
+const sidebarToggle=document.getElementById('sidebarToggle');
+const applySidebarState=collapsed=>{document.querySelector('.app-shell').classList.toggle('sidebar-collapsed',collapsed);sidebarToggle.setAttribute('aria-expanded',String(!collapsed));sidebarToggle.setAttribute('aria-label',collapsed?'Expandir barra lateral':'Minimizar barra lateral');sidebarToggle.title=collapsed?'Expandir barra lateral':'Minimizar barra lateral';document.querySelectorAll('.primary-nav a').forEach(link=>{link.title=collapsed?link.textContent.trim():''})};
+try{applySidebarState(localStorage.getItem('sidebar-collapsed')==='true');sidebarToggle.addEventListener('click',()=>{const collapsed=!document.querySelector('.app-shell').classList.contains('sidebar-collapsed');applySidebarState(collapsed);localStorage.setItem('sidebar-collapsed',String(collapsed))})}catch(error){sidebarToggle.addEventListener('click',()=>applySidebarState(!document.querySelector('.app-shell').classList.contains('sidebar-collapsed')))}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
