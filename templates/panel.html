@@ -3,7 +3,7 @@
 {% block encabezado %}Hola, {{ session['usuario_nombre'] }}{% endblock %}
 {% block subtitulo %}Panel de {{ rol|lower }} · Consulta la información disponible para tu perfil.{% endblock %}
 {% block contenido %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="dashboard-rolebar d-flex justify-content-between align-items-center mb-3">
   <span class="badge-soft">
 <i class="bi bi-person-badge">
 </i>{{ rol }}</span>
@@ -11,6 +11,25 @@
 <i class="bi bi-box-arrow-right me-1">
 </i>Cerrar sesión</a>
 </div>
+<section class="dashboard-hero mb-4">
+  <div class="dashboard-orb dashboard-orb-one"></div><div class="dashboard-orb dashboard-orb-two"></div>
+  <div class="dashboard-hero-copy">
+    <span class="dashboard-live"><i></i>Información actualizada</span>
+    <h2>Tu operación, clara y bajo control.</h2>
+    <p>Revisa pedidos, recaudo e inventario desde un solo lugar.</p>
+  </div>
+  <div class="dashboard-hero-actions">
+    {% if rol == 'Administrador' %}
+    <a href="/nuevo_pedido" class="btn btn-hero-primary"><i class="bi bi-plus-lg"></i><span>Nuevo pedido</span></a><a href="/pagos" class="btn btn-hero-secondary"><i class="bi bi-cash-coin"></i><span>Registrar pago</span></a>
+    {% elif rol == 'Operario' %}
+    <a href="/pedidos" class="btn btn-hero-primary"><i class="bi bi-clipboard-check"></i><span>Ver producción</span></a><a href="/calendario" class="btn btn-hero-secondary"><i class="bi bi-calendar3"></i><span>Entregas</span></a>
+    {% elif rol == 'Vendedor' %}
+    <a href="/nuevo_pedido" class="btn btn-hero-primary"><i class="bi bi-plus-lg"></i><span>Nuevo pedido</span></a><a href="/pedidos" class="btn btn-hero-secondary"><i class="bi bi-receipt"></i><span>Mis pedidos</span></a>
+    {% else %}
+    <a href="/mis-pedidos" class="btn btn-hero-primary"><i class="bi bi-receipt"></i><span>Ver mis pedidos</span></a><a href="/empresa#contacto" class="btn btn-hero-secondary"><i class="bi bi-chat-dots"></i><span>Contactar</span></a>
+    {% endif %}
+  </div>
+</section>
 <div class="session-notice mb-4">
   <span class="session-notice-icon">
 <i class="bi bi-shield-check">
@@ -25,18 +44,18 @@
 </i>
 </button>
 </div>
-<div class="row g-3">
+<div class="row g-3 dashboard-stat-grid">
   {% for titulo, valor in datos.items() %}
   <div class="col-md-4">
-<article class="content-card p-4 h-100 stat-card">
+<article class="content-card p-4 h-100 stat-card dashboard-data-card">
 <div class="text-secondary small text-uppercase fw-bold" style="letter-spacing:.8px">{{ titulo }}</div>
-<div class="mt-2 fs-3 fw-bold">{{ valor }}</div>
+<div class="mt-2 fs-3 fw-bold">{{ valor }}</div><span class="dashboard-data-icon"><i class="bi bi-graph-up-arrow"></i></span>
 </article>
 </div>
   {% endfor %}
 </div>
 {% if ejecutivo %}
-<section class="executive-dashboard mt-4">
+<section class="executive-dashboard crm-command-center mt-4">
   <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
     <div><p class="eyebrow mb-1">VISTA EJECUTIVA</p><h2 class="h4 mb-1">Control comercial y operativo</h2><p class="text-secondary small mb-0">Resumen actualizado con los pedidos, pagos e inventario registrados.</p></div>
     <div class="d-flex gap-2"><a href="/pagos" class="btn btn-light btn-sm"><i class="bi bi-cash-coin me-1"></i>Pagos</a><a href="/reportes" class="btn btn-primary btn-sm"><i class="bi bi-bar-chart-line me-1"></i>Reportes</a></div>
