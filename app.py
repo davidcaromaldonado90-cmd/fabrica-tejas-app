@@ -335,13 +335,25 @@ def panel():
             ).count()
             serie_registros.append({'dia': dia.strftime('%a').capitalize()[:3], 'cantidad': cantidad, 'es_hoy': dia == date.today()})
         max_registros = max([registro['cantidad'] for registro in serie_registros] or [1])
+        for registro in serie_registros:
+            registro['altura'] = max(4, round((registro['cantidad'] * 100) / max_registros))
+        pagos_recientes = Pago.query.order_by(Pago.fecha.desc()).limit(5).all()
+        pedidos_recientes = Pedido.query.order_by(Pedido.fecha_registro.desc()).limit(5).all()
+        actividad_reciente = [
+            {'titulo': f'Pago del pedido #{pago.pedido.id_pedido}', 'detalle': f'Pago registrado por ${float(pago.valor or 0):,.0f}', 'fecha': pago.fecha}
+            for pago in pagos_recientes
+        ] + [
+            {'titulo': f'Pedido #{pedido.id_pedido} registrado', 'detalle': pedido.cliente.nombre_razon_social, 'fecha': pedido.fecha_registro}
+            for pedido in pedidos_recientes if pedido.fecha_registro
+        ]
+        actividad_reciente.sort(key=lambda actividad: actividad['fecha'], reverse=True)
         ejecutivo = {
             'cobrado_mes': sum(float(pago.valor or 0) for pago in pagos_mes),
             'por_cobrar': cobro_pendiente,
             'alertas_inventario': alertas_inventario,
             'proximas_entregas': proximas_entregas,
-            'pagos_recientes': Pago.query.order_by(Pago.fecha.desc()).limit(5).all(),
-            'actividad_reciente': HistorialPedido.query.order_by(HistorialPedido.fecha.desc()).limit(6).all(),
+            'pagos_recientes': pagos_recientes,
+            'actividad_reciente': actividad_reciente[:6],
             'serie_registros': serie_registros,
             'max_registros': max_registros,
             'nuevos_hoy': serie_registros[-1]['cantidad'],
