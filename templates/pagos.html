@@ -3,110 +3,186 @@
 {% block encabezado %}Pagos y saldos{% endblock %}
 {% block subtitulo %}Registra pagos con valores claros y consulta el estado de cada pedido.{% endblock %}
 {% block contenido %}
-{% if saldos_pendientes %}
-<section class="balance-alert content-card mb-4">
-<div class="balance-alert-icon">
-<i class="bi bi-wallet2">
-</i>
-</div>
-<div>
-<strong>{{ saldos_pendientes|length }} pedido{{ 's' if saldos_pendientes|length != 1 else '' }} con saldo pendiente</strong>
-<p>Total por cobrar: ${{ '{:,.0f}'.format(total_por_cobrar).replace(',', '.') }}</p>
-</div>
-<a href="#saldos" class="btn btn-light btn-sm">Ver saldos</a>
+{% set ultimo_pago = pagos_recientes[0] if pagos_recientes else none %}
+
+<section class="payment-overview mb-4" aria-label="Resumen de cartera">
+  <article class="payment-metric payment-metric-main">
+    <span class="payment-metric-icon"><i class="bi bi-wallet2"></i></span>
+    <small>Por cobrar</small>
+    <strong>${{ '{:,.0f}'.format(total_por_cobrar).replace(',', '.') }}</strong>
+    <span>Saldo pendiente de todos los pedidos</span>
+  </article>
+  <article class="payment-metric">
+    <span class="payment-metric-icon"><i class="bi bi-receipt-cutoff"></i></span>
+    <small>Pedidos pendientes</small>
+    <strong>{{ saldos_pendientes|length }}</strong>
+    <span>Requieren seguimiento o recaudo</span>
+  </article>
+  <article class="payment-metric">
+    <span class="payment-metric-icon"><i class="bi bi-clock-history"></i></span>
+    <small>Último pago</small>
+    {% if ultimo_pago %}
+      <strong>${{ '{:,.0f}'.format(ultimo_pago.valor).replace(',', '.') }}</strong>
+      <span>{{ ultimo_pago.fecha.strftime('%d/%m/%Y · %H:%M') }}</span>
+    {% else %}
+      <strong>Sin movimientos</strong>
+      <span>Los pagos registrados aparecerán aquí</span>
+    {% endif %}
+  </article>
 </section>
-{% endif %}
-<section class="content-card payment-card p-4 mb-4">
-  <div class="payment-title">
-<span>
-<i class="bi bi-cash-coin">
-</i>
-</span>
-<div>
-<h2 class="h5 mb-1">Registrar pago</h2>
-<p class="text-secondary mb-0">El valor se aplica de inmediato al saldo pendiente.</p>
-</div>
-</div>
-  <form method="post" class="row g-3 mt-2" id="paymentForm">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="col-lg-4">
-<label class="form-label">Pedido</label>
-<select name="id_pedido" class="form-select" required>
-<option value="">Selecciona pedido</option>{% for p in saldos_pendientes %}<option value="{{ p.id_pedido }}">#{{ p.id_pedido }} · {{ p.cliente.nombre_razon_social }} · Saldo ${{ '{:,.0f}'.format(saldo_pedido(p)).replace(',', '.') }}</option>{% endfor %}</select>
-</div>
-    <div class="col-lg-3">
-<label class="form-label">Valor recibido</label>
-<div class="input-group">
-<span class="input-group-text">$</span>
-<input name="valor" id="valorPago" inputmode="numeric" class="form-control" placeholder="0" required>
-<span class="input-group-text">COP</span>
-</div>
-</div>
-    <div class="col-lg-2">
-<label class="form-label">Método</label>
-<select name="metodo" class="form-select">
-<option>Transferencia</option>
-<option>Efectivo</option>
-<option>Tarjeta</option>
-<option>Otro</option>
-</select>
-</div>
-    <div class="col-lg-3">
-<label class="form-label">Observación</label>
-<input name="observacion" class="form-control" placeholder="Referencia o nota">
-</div>
-    <div class="col-12">
-<button class="btn btn-primary">
-<i class="bi bi-check2-circle me-1">
-</i>Registrar pago</button>
-</div>
-  </form>
+
+<section class="content-card payment-workspace mb-4" id="registrar-pago">
+  <div class="payment-workspace-header">
+    <div class="payment-title">
+      <span><i class="bi bi-cash-coin"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Registrar pago</h2>
+        <p class="text-secondary mb-0">Elige un pedido y confirma el valor recibido.</p>
+      </div>
+    </div>
+    {% if saldos_pendientes %}<a href="#saldos" class="btn btn-light btn-sm"><i class="bi bi-list-check me-1"></i>Ver cartera</a>{% endif %}
+  </div>
+
+  {% if saldos_pendientes %}
+  <div class="payment-layout">
+    <form method="post" id="paymentForm" class="payment-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="form-label" for="pedidoPago">1. Pedido a pagar</label>
+        <select name="id_pedido" id="pedidoPago" class="form-select" required>
+          <option value="">Selecciona un pedido con saldo pendiente</option>
+          {% for p in saldos_pendientes %}{% set pagado = p.total_pedido|float-saldo_pedido(p) %}
+          <option value="{{ p.id_pedido }}" data-cliente="{{ p.cliente.nombre_razon_social }}" data-total="{{ p.total_pedido|float }}" data-pagado="{{ pagado }}" data-saldo="{{ saldo_pedido(p) }}">#{{ p.id_pedido }} · {{ p.cliente.nombre_razon_social }} · Saldo ${{ '{:,.0f}'.format(saldo_pedido(p)).replace(',', '.') }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="payment-form-grid">
+        <div>
+          <label class="form-label" for="valorPago">2. Valor recibido</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input name="valor" id="valorPago" inputmode="numeric" class="form-control" placeholder="0" required autocomplete="off">
+            <span class="input-group-text">COP</span>
+          </div>
+          <button type="button" class="payment-fill-balance" id="payFullBalance" disabled><i class="bi bi-lightning-charge"></i> Pagar saldo completo</button>
+        </div>
+        <div>
+          <label class="form-label" for="metodoPago">Método</label>
+          <select name="metodo" id="metodoPago" class="form-select">
+            <option>Transferencia</option>
+            <option>Efectivo</option>
+            <option>Tarjeta</option>
+            <option>Otro</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="observacionPago">Referencia u observación <span class="text-secondary">(opcional)</span></label>
+        <input name="observacion" id="observacionPago" class="form-control" placeholder="Ej. número de transferencia o nota del pago">
+      </div>
+      <button class="btn btn-primary payment-submit"><i class="bi bi-check2-circle me-1"></i>Registrar pago</button>
+    </form>
+
+    <aside class="payment-preview" aria-live="polite">
+      <span class="payment-preview-label">Resumen del pedido</span>
+      <div class="payment-preview-empty" id="paymentEmpty">
+        <i class="bi bi-hand-index-thumb"></i>
+        <p>Selecciona un pedido para ver su saldo y el avance del pago.</p>
+      </div>
+      <div id="paymentDetails" hidden>
+        <strong id="previewClient">Cliente</strong>
+        <span id="previewOrder">Pedido</span>
+        <div class="payment-preview-values">
+          <div><span>Total pedido</span><b id="previewTotal">$0</b></div>
+          <div><span>Ya pagado</span><b id="previewPaid">$0</b></div>
+          <div class="payment-preview-balance"><span>Saldo pendiente</span><b id="previewBalance">$0</b></div>
+        </div>
+        <p class="payment-preview-note"><i class="bi bi-shield-check"></i> El sistema no permitirá registrar un valor superior al saldo.</p>
+      </div>
+    </aside>
+  </div>
+  {% else %}
+  <div class="payment-no-pending"><i class="bi bi-check2-circle"></i><div><strong>No hay saldos pendientes</strong><p class="mb-0">Todos los pedidos registrados están al día.</p></div></div>
+  {% endif %}
 </section>
+
 <section class="content-card" id="saldos">
-<div class="card-header-custom">
-<div>
-<h2 class="h5 mb-1">Estado de cuenta por pedido</h2>
-<p class="text-secondary small mb-0">Valores expresados en pesos colombianos.</p>
-</div>
-</div>
-<div class="table-responsive">
-<table class="table">
-<thead>
-<tr>
-<th>Pedido</th>
-<th>Cliente</th>
-<th class="text-end">Total</th>
-<th class="text-end">Pagado</th>
-<th class="text-end">Saldo</th>
-<th>Estado</th>
-</tr>
-</thead>
-<tbody>{% for p in pedidos %}{% set pagado=(p.total_pedido|float-saldo_pedido(p)) %}<tr>
-<td>
-<strong>#{{ p.id_pedido }}</strong>
-</td>
-<td>{{ p.cliente.nombre_razon_social }}</td>
-<td class="text-end">${{ '{:,.0f}'.format(p.total_pedido).replace(',', '.') }}</td>
-<td class="text-end">${{ '{:,.0f}'.format(pagado).replace(',', '.') }}</td>
-<td class="text-end">
-<strong>${{ '{:,.0f}'.format(saldo_pedido(p)).replace(',', '.') }}</strong>
-</td>
-<td>{% if saldo_pedido(p)>0 %}<span class="badge-soft estado-pendiente">
-<i class="bi bi-clock-history">
-</i>Pendiente</span>{% else %}<span class="badge-soft estado-entregado">
-<i class="bi bi-check-circle">
-</i>Al día</span>{% endif %}</td>
-</tr>{% else %}<tr>
-<td colspan="6">
-<div class="empty">Aún no hay pedidos registrados.</div>
-</td>
-</tr>{% endfor %}</tbody>
-</table>
-</div>
+  <div class="card-header-custom payment-account-header">
+    <div>
+      <h2 class="h5 mb-1">Estado de cuenta por pedido</h2>
+      <p class="text-secondary small mb-0">Consulta total, pagos realizados y saldo de cada pedido.</p>
+    </div>
+    <div class="input-group payment-search">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="search" id="accountSearch" class="form-control" placeholder="Buscar pedido o cliente" aria-label="Buscar pedido o cliente">
+    </div>
+  </div>
+  <div class="table-responsive payment-table-wrap">
+    <table class="table payment-account-table" id="accountsTable">
+      <thead><tr><th>Pedido</th><th>Cliente</th><th class="text-end">Total</th><th class="text-end">Pagado</th><th class="text-end">Saldo</th><th>Estado</th></tr></thead>
+      <tbody>{% for p in pedidos %}{% set pagado = p.total_pedido|float-saldo_pedido(p) %}<tr data-search="#{{ p.id_pedido }} {{ p.cliente.nombre_razon_social|lower }}">
+        <td data-label="Pedido"><strong>#{{ p.id_pedido }}</strong></td>
+        <td data-label="Cliente">{{ p.cliente.nombre_razon_social }}</td>
+        <td data-label="Total" class="text-end">${{ '{:,.0f}'.format(p.total_pedido).replace(',', '.') }}</td>
+        <td data-label="Pagado" class="text-end">${{ '{:,.0f}'.format(pagado).replace(',', '.') }}</td>
+        <td data-label="Saldo" class="text-end"><strong>${{ '{:,.0f}'.format(saldo_pedido(p)).replace(',', '.') }}</strong></td>
+        <td data-label="Estado">{% if saldo_pedido(p)>0 %}<span class="badge-soft estado-pendiente"><i class="bi bi-clock-history"></i>Pendiente</span>{% else %}<span class="badge-soft estado-entregado"><i class="bi bi-check-circle"></i>Al día</span>{% endif %}</td>
+      </tr>{% else %}<tr><td colspan="6"><div class="empty">Aún no hay pedidos registrados.</div></td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
 </section>
+
 <section class="content-card mt-4">
-<div class="card-header-custom"><div><h2 class="h5 mb-1">Comprobantes recientes</h2><p class="text-secondary small mb-0">Descarga un comprobante interno por cada pago registrado.</p></div><i class="bi bi-file-earmark-pdf text-primary fs-4"></i></div>
-<div class="table-responsive"><table class="table"><thead><tr><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Método</th><th class="text-end">Valor</th><th class="text-end">Comprobante</th></tr></thead><tbody>{% for pago in pagos_recientes %}<tr><td>{{ pago.fecha.strftime('%d/%m/%Y %H:%M') }}</td><td><strong>{{ pago.pedido.cliente.nombre_razon_social }}</strong></td><td>#{{ pago.pedido.id_pedido }}</td><td>{{ pago.metodo }}</td><td class="text-end"><strong>${{ '{:,.0f}'.format(pago.valor).replace(',', '.') }}</strong></td><td class="text-end"><a href="{{ url_for('comprobante_pago', id=pago.id_pago) }}" class="btn btn-light btn-sm" title="Descargar comprobante PDF"><i class="bi bi-file-earmark-arrow-down"></i></a></td></tr>{% else %}<tr><td colspan="6"><div class="empty">Aún no hay pagos para generar comprobantes.</div></td></tr>{% endfor %}</tbody></table></div>
+  <div class="card-header-custom"><div><h2 class="h5 mb-1">Comprobantes recientes</h2><p class="text-secondary small mb-0">Descarga un comprobante interno por cada pago registrado.</p></div><i class="bi bi-file-earmark-pdf text-primary fs-4"></i></div>
+  <div class="table-responsive payment-table-wrap"><table class="table payment-receipt-table"><thead><tr><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Método</th><th class="text-end">Valor</th><th class="text-end">Comprobante</th></tr></thead><tbody>{% for pago in pagos_recientes %}<tr><td data-label="Fecha">{{ pago.fecha.strftime('%d/%m/%Y %H:%M') }}</td><td data-label="Cliente"><strong>{{ pago.pedido.cliente.nombre_razon_social }}</strong></td><td data-label="Pedido">#{{ pago.pedido.id_pedido }}</td><td data-label="Método">{{ pago.metodo }}</td><td data-label="Valor" class="text-end"><strong>${{ '{:,.0f}'.format(pago.valor).replace(',', '.') }}</strong></td><td data-label="Comprobante" class="text-end"><a href="{{ url_for('comprobante_pago', id=pago.id_pago) }}" class="btn btn-light btn-sm" title="Descargar comprobante PDF"><i class="bi bi-file-earmark-arrow-down"></i><span class="receipt-download-text">Descargar</span></a></td></tr>{% else %}<tr><td colspan="6"><div class="empty">Aún no hay pagos para generar comprobantes.</div></td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endblock %}
-{% block scripts %}<script>const valorPago=document.getElementById('valorPago'),formPago=document.getElementById('paymentForm');valorPago.addEventListener('input',()=>{const digitos=valorPago.value.replace(/\D/g,'');valorPago.value=digitos?Number(digitos).toLocaleString('es-CO'):''});formPago.addEventListener('submit',()=>valorPago.value=valorPago.value.replace(/\D/g,''));</script>{% endblock %}
+
+{% block scripts %}
+<script>
+  const valorPago = document.getElementById('valorPago');
+  const formPago = document.getElementById('paymentForm');
+  const pedidoPago = document.getElementById('pedidoPago');
+  const payFullBalance = document.getElementById('payFullBalance');
+  const paymentEmpty = document.getElementById('paymentEmpty');
+  const paymentDetails = document.getElementById('paymentDetails');
+  const money = value => '$' + Number(value || 0).toLocaleString('es-CO', {maximumFractionDigits: 0});
+
+  function updatePaymentPreview() {
+    if (!pedidoPago) return;
+    const option = pedidoPago.options[pedidoPago.selectedIndex];
+    const hasOrder = option && option.value;
+    paymentEmpty.hidden = Boolean(hasOrder);
+    paymentDetails.hidden = !hasOrder;
+    payFullBalance.disabled = !hasOrder;
+    if (!hasOrder) return;
+    document.getElementById('previewClient').textContent = option.dataset.cliente;
+    document.getElementById('previewOrder').textContent = 'Pedido #' + option.value;
+    document.getElementById('previewTotal').textContent = money(option.dataset.total);
+    document.getElementById('previewPaid').textContent = money(option.dataset.pagado);
+    document.getElementById('previewBalance').textContent = money(option.dataset.saldo);
+  }
+
+  if (valorPago) {
+    valorPago.addEventListener('input', () => {
+      const digits = valorPago.value.replace(/\D/g, '');
+      valorPago.value = digits ? Number(digits).toLocaleString('es-CO') : '';
+    });
+    formPago.addEventListener('submit', () => { valorPago.value = valorPago.value.replace(/\D/g, ''); });
+  }
+  if (pedidoPago) pedidoPago.addEventListener('change', updatePaymentPreview);
+  if (payFullBalance) payFullBalance.addEventListener('click', () => {
+    const option = pedidoPago.options[pedidoPago.selectedIndex];
+    valorPago.value = Number(option.dataset.saldo).toLocaleString('es-CO');
+    valorPago.focus();
+  });
+
+  const accountSearch = document.getElementById('accountSearch');
+  if (accountSearch) accountSearch.addEventListener('input', () => {
+    const term = accountSearch.value.trim().toLowerCase();
+    document.querySelectorAll('#accountsTable tbody tr[data-search]').forEach(row => {
+      row.hidden = !row.dataset.search.includes(term);
+    });
+  });
+</script>
+{% endblock %}
