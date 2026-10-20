@@ -104,5 +104,9 @@
 </table>
 </div>
 </section>
+<section class="content-card mt-4">
+<div class="card-header-custom"><div><h2 class="h5 mb-1">Comprobantes recientes</h2><p class="text-secondary small mb-0">Descarga un comprobante interno por cada pago registrado.</p></div><i class="bi bi-file-earmark-pdf text-primary fs-4"></i></div>
+<div class="table-responsive"><table class="table"><thead><tr><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Método</th><th class="text-end">Valor</th><th class="text-end">Comprobante</th></tr></thead><tbody>{% for pago in pagos_recientes %}<tr><td>{{ pago.fecha.strftime('%d/%m/%Y %H:%M') }}</td><td><strong>{{ pago.pedido.cliente.nombre_razon_social }}</strong></td><td>#{{ pago.pedido.id_pedido }}</td><td>{{ pago.metodo }}</td><td class="text-end"><strong>${{ '{:,.0f}'.format(pago.valor).replace(',', '.') }}</strong></td><td class="text-end"><a href="{{ url_for('comprobante_pago', id=pago.id_pago) }}" class="btn btn-light btn-sm" title="Descargar comprobante PDF"><i class="bi bi-file-earmark-arrow-down"></i></a></td></tr>{% else %}<tr><td colspan="6"><div class="empty">Aún no hay pagos para generar comprobantes.</div></td></tr>{% endfor %}</tbody></table></div>
+</section>
 {% endblock %}
 {% block scripts %}<script>const valorPago=document.getElementById('valorPago'),formPago=document.getElementById('paymentForm');valorPago.addEventListener('input',()=>{const digitos=valorPago.value.replace(/\D/g,'');valorPago.value=digitos?Number(digitos).toLocaleString('es-CO'):''});formPago.addEventListener('submit',()=>valorPago.value=valorPago.value.replace(/\D/g,''));</script>{% endblock %}

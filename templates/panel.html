@@ -35,6 +35,23 @@
 </div>
   {% endfor %}
 </div>
+{% if ejecutivo %}
+<section class="executive-dashboard mt-4">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <div><p class="eyebrow mb-1">VISTA EJECUTIVA</p><h2 class="h4 mb-1">Control comercial y operativo</h2><p class="text-secondary small mb-0">Resumen actualizado con los pedidos, pagos e inventario registrados.</p></div>
+    <div class="d-flex gap-2"><a href="/pagos" class="btn btn-light btn-sm"><i class="bi bi-cash-coin me-1"></i>Pagos</a><a href="/reportes" class="btn btn-primary btn-sm"><i class="bi bi-bar-chart-line me-1"></i>Reportes</a></div>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-4"><article class="content-card executive-card executive-income p-4 h-100"><span class="executive-icon"><i class="bi bi-wallet2"></i></span><small>Pagos recibidos este mes</small><strong>${{ '{:,.0f}'.format(ejecutivo.cobrado_mes).replace(',', '.') }}</strong><span>Dinero registrado en caja</span></article></div>
+    <div class="col-md-4"><article class="content-card executive-card executive-receivable p-4 h-100"><span class="executive-icon"><i class="bi bi-cash-stack"></i></span><small>Saldo por cobrar</small><strong>${{ '{:,.0f}'.format(ejecutivo.por_cobrar).replace(',', '.') }}</strong><span>De todos los pedidos registrados</span></article></div>
+    <div class="col-md-4"><article class="content-card executive-card {% if ejecutivo.alertas_inventario %}executive-alert{% else %}executive-stock{% endif %} p-4 h-100"><span class="executive-icon"><i class="bi bi-boxes"></i></span><small>Alertas de inventario</small><strong>{{ ejecutivo.alertas_inventario }}</strong><span>{% if ejecutivo.alertas_inventario %}Referencia{{ 's' if ejecutivo.alertas_inventario != 1 else '' }} para revisar{% else %}Todas las referencias están sobre el mínimo{% endif %}</span></article></div>
+  </div>
+  <div class="row g-4 mt-1">
+    <div class="col-lg-7"><section class="content-card h-100"><div class="card-header-custom"><div><h2 class="h5 mb-1">Próximas entregas</h2><p class="text-secondary small mb-0">Pedidos pendientes o listos para los próximos siete días.</p></div><a href="/calendario" class="btn btn-light btn-sm">Calendario</a></div><div class="table-responsive"><table class="table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Estado</th></tr></thead><tbody>{% for pedido in ejecutivo.proximas_entregas %}<tr><td><strong>#{{ pedido.id_pedido }}</strong></td><td>{{ pedido.cliente.nombre_razon_social }}</td><td>{{ pedido.fecha_pedido.strftime('%d/%m/%Y') }}</td><td><span class="badge-soft {% if pedido.estado == 'Listo para entrega' %}estado-listo{% else %}estado-pendiente{% endif %}">{{ pedido.estado }}</span></td></tr>{% else %}<tr><td colspan="4"><div class="empty">No hay entregas pendientes para los próximos siete días.</div></td></tr>{% endfor %}</tbody></table></div></section></div>
+    <div class="col-lg-5"><section class="content-card h-100"><div class="card-header-custom"><div><h2 class="h5 mb-1">Últimos pagos</h2><p class="text-secondary small mb-0">Movimientos registrados recientemente.</p></div><a href="/pagos" class="btn btn-light btn-sm">Ver todos</a></div><div class="executive-payments">{% for pago in ejecutivo.pagos_recientes %}<div><span class="executive-payment-icon"><i class="bi bi-check2-circle"></i></span><p><strong>{{ pago.pedido.cliente.nombre_razon_social }}</strong><small>Pedido #{{ pago.pedido.id_pedido }} · {{ pago.metodo }}</small></p><b>${{ '{:,.0f}'.format(pago.valor).replace(',', '.') }}</b></div>{% else %}<div class="empty">Aún no hay pagos registrados.</div>{% endfor %}</div></section></div>
+  </div>
+</section>
+{% endif %}
 {% if resumen_mensual %}
 <section class="monthly-summary content-card mt-4">
   <div class="card-header-custom">

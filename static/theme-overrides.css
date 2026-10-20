@@ -172,6 +172,20 @@ body {
 .table-filters .form-select { width: 175px; min-height: 33px !important; }
 .monthly-summary { overflow: hidden; }.summary-item { min-height: 92px; padding: 17px 20px; border-right: 1px solid var(--line); }.monthly-summary .col-md-4:last-child .summary-item { border-right: 0; }.summary-item span { display: block; color: var(--muted); font-size: .72rem; font-weight: 750; text-transform: uppercase; letter-spacing: .45px; }.summary-item strong { display: block; margin-top: 7px; color: var(--navy); font-size: 1.25rem; }
 
+/* Panel ejecutivo: usa los datos existentes de pedidos, pagos e inventario. */
+.executive-dashboard > .d-flex > div:first-child .h4 { color: var(--navy); font-weight: 750; }
+.executive-card { position: relative; min-height: 142px; overflow: hidden; }
+.executive-card:after { content: ""; position: absolute; width: 104px; height: 104px; right: -35px; bottom: -44px; border-radius: 50%; opacity: .58; }
+.executive-card small, .executive-card > span:last-child { display: block; color: var(--muted); font-size: .75rem; }
+.executive-card small { font-weight: 800; letter-spacing: .45px; text-transform: uppercase; }
+.executive-card strong { position: relative; z-index: 1; display: block; margin: 9px 0 4px; color: var(--navy); font-size: 1.55rem; letter-spacing: -.04em; }
+.executive-icon { display: grid; position: absolute; top: 16px; right: 16px; z-index: 1; place-items: center; width: 37px; height: 37px; border-radius: 11px; font-size: 1rem; }
+.executive-income { border-top: 3px solid #2f9e78 !important; }.executive-income:after { background: #dff4ec; }.executive-income .executive-icon { background: #e1f5ed; color: #19745b; }
+.executive-receivable { border-top: 3px solid #e09a36 !important; }.executive-receivable:after { background: #fff0da; }.executive-receivable .executive-icon { background: #fff1de; color: #a86622; }
+.executive-stock { border-top: 3px solid var(--blue) !important; }.executive-stock:after { background: #e3f3fa; }.executive-stock .executive-icon { background: #e4f3f9; color: var(--blue); }
+.executive-alert { border-top: 3px solid #dc6f45 !important; }.executive-alert:after { background: #ffede6; }.executive-alert .executive-icon { background: #fff0ea; color: #bc5531; }
+.executive-payments { padding: 4px 18px 10px; }.executive-payments > div { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }.executive-payments > div:last-child { border: 0; }.executive-payment-icon { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; background: #e1f5ed; color: var(--success); }.executive-payments p { min-width: 0; flex: 1; margin: 0; }.executive-payments p strong, .executive-payments p small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.executive-payments p strong { color: var(--navy); font-size: .8rem; }.executive-payments p small { color: var(--muted); font-size: .68rem; }.executive-payments b { color: var(--success); font-size: .78rem; white-space: nowrap; }
+
 .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 18px; }
 .calendar-toolbar h2 { margin: 0; color: var(--navy); font-size: 1rem; font-weight: 700; }
 .calendar-toolbar a:not(.btn) { display: block; margin-top: 2px; color: var(--blue); font-size: .76rem; text-align: center; }

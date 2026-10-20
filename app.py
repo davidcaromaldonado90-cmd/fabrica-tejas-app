@@ -306,14 +306,30 @@ def panel():
     rol = session['usuario_rol']
     datos = {}
     resumen_mensual = None
+    ejecutivo = None
     if rol == 'Administrador':
         datos = {'Clientes registrados': Cliente.query.count(), 'Productos activos': Producto.query.count(), 'Pedidos registrados': Pedido.query.count()}
         inicio_mes = date.today().replace(day=1)
         pedidos_mes = Pedido.query.filter(Pedido.fecha_pedido >= inicio_mes).all()
+        pagos_mes = Pago.query.filter(Pago.fecha >= datetime.combine(inicio_mes, datetime.min.time())).all()
+        pedidos_todos = Pedido.query.all()
+        alertas_inventario = Inventario.query.filter(Inventario.cantidad_actual <= Inventario.minimo).count()
+        proximas_entregas = Pedido.query.filter(
+            Pedido.fecha_pedido.between(date.today(), date.today() + timedelta(days=7)),
+            Pedido.estado != 'Entregado'
+        ).order_by(Pedido.fecha_pedido.asc()).limit(5).all()
+        cobro_pendiente = sum(saldo_pedido(pedido) for pedido in pedidos_todos)
         resumen_mensual = {
             'Ventas del mes': sum(float(p.total_pedido or 0) for p in pedidos_mes),
             'Entregados': sum(p.estado == 'Entregado' for p in pedidos_mes),
             'Pendientes': sum(p.estado == 'Pendiente' for p in pedidos_mes),
+        }
+        ejecutivo = {
+            'cobrado_mes': sum(float(pago.valor or 0) for pago in pagos_mes),
+            'por_cobrar': cobro_pendiente,
+            'alertas_inventario': alertas_inventario,
+            'proximas_entregas': proximas_entregas,
+            'pagos_recientes': Pago.query.order_by(Pago.fecha.desc()).limit(5).all(),
         }
     elif rol == 'Operario':
         datos = {'Pedidos pendientes': Pedido.query.filter_by(estado='Pendiente').count(), 'Listos para entrega': Pedido.query.filter_by(estado='Listo para entrega').count(), 'Pedidos entregados': Pedido.query.filter_by(estado='Entregado').count()}
@@ -324,7 +340,7 @@ def panel():
         cliente = Cliente.query.filter_by(id_usuario=session['usuario_id']).first()
         pedidos_cliente = Pedido.query.filter_by(id_cliente=cliente.id_cliente).count() if cliente else 0
         datos = {'Mis pedidos': pedidos_cliente, 'Estado de cuenta': 'Activo', 'Atención': 'Contáctanos para cotizar'}
-    return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual)
+    return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual, ejecutivo=ejecutivo)
 
 
 @app.route('/reportes')
@@ -480,8 +496,78 @@ def pagos():
     pedidos = Pedido.query.order_by(Pedido.fecha_pedido.desc()).all()
     saldos_pendientes = [pedido for pedido in pedidos if saldo_pedido(pedido) > 0]
     total_por_cobrar = sum(saldo_pedido(pedido) for pedido in saldos_pendientes)
+    pagos_recientes = Pago.query.order_by(Pago.fecha.desc()).limit(12).all()
     return render_template('pagos.html', pedidos=pedidos, saldo_pedido=saldo_pedido,
-                           saldos_pendientes=saldos_pendientes, total_por_cobrar=total_por_cobrar)
+                           saldos_pendientes=saldos_pendientes, total_por_cobrar=total_por_cobrar,
+                           pagos_recientes=pagos_recientes)
+
+
+@app.route('/pagos/<int:id>/comprobante.pdf')
+@roles_requeridos('Administrador')
+def comprobante_pago(id):
+    """Genera un recibo interno de pago; no equivale a factura electrónica."""
+    pago = Pago.query.get_or_404(id)
+    pedido = pago.pedido
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    salida = BytesIO()
+    documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=42, leftMargin=42, topMargin=42, bottomMargin=42)
+    estilos = getSampleStyleSheet()
+    estilos.add(ParagraphStyle(name='ReceiptNote', parent=estilos['Normal'], textColor=colors.HexColor('#63798C'), fontSize=8, leading=11))
+    encabezado = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">COMPROBANTE DE PAGO</font>', estilos['Title']), Paragraph(f'<b>RECIBO #{pago.id_pago:05d}</b><br/><font size="9">{pago.fecha.strftime("%d/%m/%Y %H:%M")}</font>', estilos['Normal'])]], colWidths=[4.65 * inch, 2.15 * inch])
+    encabezado.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#092B52')), ('TEXTCOLOR', (0, 0), (-1, -1), colors.white), ('PADDING', (0, 0), (-1, -1), 15), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    saldo_actual = saldo_pedido(pedido)
+    detalle = [
+        ['Cliente', pedido.cliente.nombre_razon_social],
+        ['Pedido relacionado', f'#{pedido.id_pedido:05d} · Entrega {pedido.fecha_pedido.strftime("%d/%m/%Y")}'],
+        ['Método de pago', pago.metodo],
+        ['Observación', pago.observacion or 'Sin observaciones'],
+        ['Valor recibido', f'${float(pago.valor):,.0f} COP'],
+        ['Saldo actual del pedido', f'${saldo_actual:,.0f} COP'],
+    ]
+    tabla = Table(detalle, colWidths=[2.05 * inch, 4.75 * inch])
+    tabla.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E9F6FC')), ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0D4D86')), ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('PADDING', (0, 0), (-1, -1), 10)]))
+    documento.build([encabezado, Spacer(1, 18), Paragraph('Detalle del recibo', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 20), Paragraph('Este documento es un comprobante interno de pago y no reemplaza una factura electrónica.', estilos['ReceiptNote'])])
+    salida.seek(0)
+    return send_file(salida, as_attachment=True, download_name=f'comprobante_pago_{pago.id_pago:05d}.pdf', mimetype='application/pdf')
+
+
+@app.route('/clientes/<int:id>/estado-cuenta.pdf')
+@roles_requeridos('Administrador')
+def estado_cuenta_cliente(id):
+    """Genera el estado de cuenta interno de un cliente, usando pedidos y pagos existentes."""
+    cliente = Cliente.query.get_or_404(id)
+    pedidos_cliente = Pedido.query.filter_by(id_cliente=cliente.id_cliente).order_by(Pedido.fecha_pedido.desc(), Pedido.id_pedido.desc()).all()
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    total_facturado = sum(float(pedido.total_pedido or 0) for pedido in pedidos_cliente)
+    total_pagado = sum(sum(float(pago.valor or 0) for pago in pedido.pagos) for pedido in pedidos_cliente)
+    total_saldo = sum(saldo_pedido(pedido) for pedido in pedidos_cliente)
+    salida = BytesIO()
+    documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=34, leftMargin=34, topMargin=42, bottomMargin=42)
+    estilos = getSampleStyleSheet()
+    estilos.add(ParagraphStyle(name='AccountNote', parent=estilos['Normal'], textColor=colors.HexColor('#63798C'), fontSize=8, leading=11))
+    encabezado = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">ESTADO DE CUENTA</font>', estilos['Title']), Paragraph(f'<b>GENERADO</b><br/><font size="9">{datetime.now(ZoneInfo("America/Bogota")).strftime("%d/%m/%Y %H:%M")}</font>', estilos['Normal'])]], colWidths=[4.7 * inch, 2.1 * inch])
+    encabezado.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#092B52')), ('TEXTCOLOR', (0, 0), (-1, -1), colors.white), ('PADDING', (0, 0), (-1, -1), 15), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    resumen = Table([['CLIENTE', cliente.nombre_razon_social], ['IDENTIFICACIÓN', cliente.numero_identificacion], ['TOTAL FACTURADO', f'${total_facturado:,.0f} COP'], ['TOTAL PAGADO', f'${total_pagado:,.0f} COP'], ['SALDO PENDIENTE', f'${total_saldo:,.0f} COP']], colWidths=[2.05 * inch, 4.75 * inch])
+    resumen.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E9F6FC')), ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0D4D86')), ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#CFE4F0')), ('PADDING', (0, 0), (-1, -1), 8)]))
+    filas = [['Pedido', 'Entrega', 'Estado', 'Total', 'Pagado', 'Saldo']]
+    for pedido in pedidos_cliente:
+        pagado = float(pedido.total_pedido or 0) - saldo_pedido(pedido)
+        filas.append([f'#{pedido.id_pedido:05d}', pedido.fecha_pedido.strftime('%d/%m/%Y'), pedido.estado, f'${float(pedido.total_pedido or 0):,.0f}', f'${pagado:,.0f}', f'${saldo_pedido(pedido):,.0f}'])
+    detalle = Table(filas, repeatRows=1, colWidths=[.72 * inch, .86 * inch, 1.45 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
+    detalle.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('FONTSIZE', (0, 0), (-1, -1), 8), ('ALIGN', (3, 1), (-1, -1), 'RIGHT'), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5FBFE')]), ('PADDING', (0, 0), (-1, -1), 7)]))
+    documento.build([encabezado, Spacer(1, 16), resumen, Spacer(1, 20), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), detalle, Spacer(1, 14), Paragraph('Estado de cuenta interno sujeto a validación administrativa.', estilos['AccountNote'])])
+    salida.seek(0)
+    return send_file(salida, as_attachment=True, download_name=f'estado_cuenta_cliente_{cliente.id_cliente}.pdf', mimetype='application/pdf')
 
 
 @app.route('/pedidos/<int:id>/historial')
