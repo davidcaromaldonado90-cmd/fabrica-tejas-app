@@ -297,6 +297,12 @@ def variables_de_acceso():
     return {'google_login_habilitado': oauth.create_client('google') is not None}
 
 
+@app.errorhandler(429)
+def demasiadas_peticiones(error):
+    flash('Has solicitado varios enlaces recientemente. Espera unos minutos antes de pedir otro.', 'warning')
+    return redirect(url_for('recuperar_contrasena'))
+
+
 @app.errorhandler(500)
 def error_interno(error):
     app.logger.exception('Error no controlado: %s', error)
@@ -428,7 +434,7 @@ def autorizar_google():
 
 
 @app.route('/recuperar-contrasena', methods=['GET', 'POST'])
-@limiter.limit('3 per hour')
+@limiter.limit('3 per 15 minutes', methods=['POST'])
 def recuperar_contrasena():
     if request.method == 'POST':
         correo = request.form['correo'].strip().lower()
