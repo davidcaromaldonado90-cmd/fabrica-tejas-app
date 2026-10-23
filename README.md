@@ -20,3 +20,19 @@ En Render, la aplicación debe iniciar con `flask --app app db upgrade && gunico
 La migración incluida agrega `clientes.id_usuario` de forma nullable. Los clientes existentes quedan sin vínculo: asígnalos desde Editar cliente. No se relacionan por correo automáticamente para evitar asociaciones erróneas.
 
 `RATELIMIT_STORAGE_URI=memory://` funciona con un proceso; para varias instancias de Render usa Redis compartido.
+
+## Inicio de sesión con Google
+
+El acceso con Google usa OpenID Connect y solo solicita el nombre, correo y perfil básico. Por seguridad, el archivo descargado de Google no se guarda ni se sube al repositorio.
+
+En **Render → Environment**, crea estas variables con los valores del archivo de credenciales:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI=https://fabrica-tejas-app.onrender.com/autorizar/google`
+
+En Google Cloud Console, edita el cliente OAuth de tipo **Web application** y reemplaza la URI de redirección autorizada actual por exactamente:
+
+`https://fabrica-tejas-app.onrender.com/autorizar/google`
+
+El botón aparece en la pantalla de inicio de sesión cuando las dos credenciales estén configuradas. Por integridad de los datos, una cuenta nueva debe completar una vez el registro normal (identificación y teléfono); después podrá iniciar sesión con Google en un clic.

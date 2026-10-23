@@ -12,6 +12,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
+from authlib.integrations.flask_client import OAuth
 from sqlalchemy import func, text
 from sqlalchemy.engine import URL
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -33,11 +34,25 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['RATELIMIT_STORAGE_URI'] = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
+app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+# En producción usa la URL pública exacta registrada en Google Cloud.
+app.config['GOOGLE_REDIRECT_URI'] = os.environ.get('GOOGLE_REDIRECT_URI')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO'), format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
 migrate = Migrate(app, db)
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
+oauth = OAuth(app)
+
+if app.config['GOOGLE_CLIENT_ID'] and app.config['GOOGLE_CLIENT_SECRET']:
+    oauth.register(
+        name='google',
+        client_id=app.config['GOOGLE_CLIENT_ID'],
+        client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'},
+    )
 
 # ---------- MODELOS ----------
 
@@ -194,6 +209,21 @@ def consulta_por_rol():
     return consulta
 
 
+def iniciar_sesion_usuario(usuario):
+    """Crea una sesión uniforme para contraseña y proveedores externos."""
+    session.clear()
+    session.permanent = True
+    session['usuario_id'] = usuario.id_usuario
+    session['usuario_nombre'] = usuario.nombre
+    session['usuario_rol'] = usuario.rol
+
+
+@app.context_processor
+def variables_de_acceso():
+    """Evita mostrar el acceso de Google si faltan sus credenciales."""
+    return {'google_login_habilitado': oauth.create_client('google') is not None}
+
+
 @app.errorhandler(500)
 def error_interno(error):
     app.logger.exception('Error no controlado: %s', error)
@@ -267,15 +297,61 @@ def iniciar_sesion():
     if request.method == 'POST':
         usuario = Usuario.query.filter_by(correo=request.form['correo'].strip().lower()).first()
         if usuario and check_password_hash(usuario.password_hash, request.form['password']):
-            session.clear()
-            session.permanent = True
-            session['usuario_id'] = usuario.id_usuario
-            session['usuario_nombre'] = usuario.nombre
-            session['usuario_rol'] = usuario.rol
+            iniciar_sesion_usuario(usuario)
             return redirect(url_for('panel'))
         app.logger.warning('Intento de inicio de sesión fallido para %s desde %s', request.form['correo'].strip().lower(), get_remote_address())
         flash('Correo o contraseña incorrectos.', 'danger')
     return render_template('acceso.html', modo='login')
+
+
+@app.route('/iniciar-sesion/google')
+@limiter.limit('10 per minute')
+def iniciar_sesion_google():
+    """Envía a Google solo para autenticar una cuenta ya registrada."""
+    google = oauth.create_client('google')
+    if google is None:
+        flash('El acceso con Google aún no está configurado.', 'warning')
+        return redirect(url_for('iniciar_sesion'))
+
+    redirect_uri = app.config['GOOGLE_REDIRECT_URI'] or url_for('autorizar_google', _external=True)
+    return google.authorize_redirect(redirect_uri, prompt='select_account')
+
+
+@app.route('/autorizar/google')
+@limiter.limit('10 per minute')
+def autorizar_google():
+    """Valida la identidad devuelta por Google e inicia la sesión local."""
+    google = oauth.create_client('google')
+    if google is None:
+        flash('El acceso con Google aún no está configurado.', 'warning')
+        return redirect(url_for('iniciar_sesion'))
+
+    if request.args.get('error'):
+        flash('No se completó el acceso con Google. Puedes intentarlo nuevamente.', 'warning')
+        return redirect(url_for('iniciar_sesion'))
+
+    try:
+        token = google.authorize_access_token()
+        datos_google = token.get('userinfo') or {}
+    except Exception:
+        app.logger.exception('No fue posible validar el inicio de sesión con Google.')
+        flash('No fue posible validar tu cuenta de Google. Inténtalo nuevamente.', 'danger')
+        return redirect(url_for('iniciar_sesion'))
+
+    correo = str(datos_google.get('email') or '').strip().lower()
+    correo_verificado = datos_google.get('email_verified') is True or str(datos_google.get('email_verified')).lower() == 'true'
+    if not correo or not correo_verificado:
+        flash('Google no confirmó un correo electrónico verificado para esta cuenta.', 'danger')
+        return redirect(url_for('iniciar_sesion'))
+
+    usuario = Usuario.query.filter_by(correo=correo).first()
+    if usuario is None:
+        # No se crean clientes incompletos: identificación y teléfono siguen siendo obligatorios.
+        flash('Tu correo de Google aún no tiene una cuenta. Regístrate una vez y luego podrás entrar con Google.', 'info')
+        return redirect(url_for('crear_cuenta'))
+
+    iniciar_sesion_usuario(usuario)
+    return redirect(url_for('panel'))
 
 
 @app.route('/recuperar-contrasena', methods=['GET', 'POST'])

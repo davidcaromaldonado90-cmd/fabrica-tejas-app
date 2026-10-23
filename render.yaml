@@ -6,3 +6,10 @@ services:
     # La migración se ejecuta antes de atender tráfico. Así, el código y el
     # esquema de producción se despliegan como una misma versión.
     startCommand: flask --app app db upgrade && gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://fabrica-tejas-app.onrender.com/autorizar/google
