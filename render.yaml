@@ -13,3 +13,11 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         value: https://fabrica-tejas-app.onrender.com/autorizar/google
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Láminas y Tableros Montoya
+      - key: APP_BASE_URL
+        value: https://fabrica-tejas-app.onrender.com

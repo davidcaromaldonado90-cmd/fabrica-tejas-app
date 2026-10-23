@@ -1,5 +1,7 @@
 import os
 import logging
+import hashlib
+import secrets
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, date, timedelta
@@ -16,6 +18,7 @@ from authlib.integrations.flask_client import OAuth
 from sqlalchemy import func, text
 from sqlalchemy.engine import URL
 from werkzeug.security import check_password_hash, generate_password_hash
+import requests
 
 app = Flask(__name__)
 
@@ -38,6 +41,10 @@ app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
 # En producción usa la URL pública exacta registrada en Google Cloud.
 app.config['GOOGLE_REDIRECT_URI'] = os.environ.get('GOOGLE_REDIRECT_URI')
+app.config['BREVO_API_KEY'] = os.environ.get('BREVO_API_KEY')
+app.config['MAIL_FROM_EMAIL'] = os.environ.get('MAIL_FROM_EMAIL')
+app.config['MAIL_FROM_NAME'] = os.environ.get('MAIL_FROM_NAME', 'Láminas y Tableros Montoya')
+app.config['APP_BASE_URL'] = os.environ.get('APP_BASE_URL', '').rstrip('/')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO'), format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 db = SQLAlchemy(app)
 csrf = CSRFProtect(app)
@@ -120,6 +127,22 @@ class SolicitudRecuperacion(db.Model):
     correo = db.Column(db.String(120), nullable=False)
     fecha_solicitud = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     estado = db.Column(db.Enum('Pendiente', 'Atendida'), nullable=False, default='Pendiente')
+
+
+class TokenRecuperacionContrasena(db.Model):
+    """Token de un solo uso para restablecer una contraseña.
+
+    Solo se almacena el hash SHA-256: incluso con acceso a la base de datos no
+    es posible reutilizar el enlace enviado al correo del usuario.
+    """
+    __tablename__ = 'tokens_recuperacion_contrasena'
+    id_token = db.Column(db.Integer, primary_key=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True)
+    fecha_creacion = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    fecha_expiracion = db.Column(db.DateTime, nullable=False)
+    usado_en = db.Column(db.DateTime, nullable=True)
+    usuario = db.relationship('Usuario', backref='tokens_recuperacion')
 
 
 class Inventario(db.Model):
@@ -216,6 +239,56 @@ def iniciar_sesion_usuario(usuario):
     session['usuario_id'] = usuario.id_usuario
     session['usuario_nombre'] = usuario.nombre
     session['usuario_rol'] = usuario.rol
+
+
+def hash_token_recuperacion(token):
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def url_restablecimiento_publica(token):
+    ruta = url_for('restablecer_contrasena', token=token)
+    if app.config['APP_BASE_URL']:
+        return f"{app.config['APP_BASE_URL']}{ruta}"
+    return url_for('restablecer_contrasena', token=token, _external=True)
+
+
+def enviar_correo_recuperacion(usuario, enlace):
+    """Envía el enlace transaccional con Brevo sin exponer datos sensibles."""
+    api_key = app.config['BREVO_API_KEY']
+    remitente = app.config['MAIL_FROM_EMAIL']
+    if not api_key or not remitente:
+        app.logger.error('Recuperación de contraseña no configurada: faltan BREVO_API_KEY o MAIL_FROM_EMAIL.')
+        return False
+
+    contenido = f"""
+    <div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#102f46\">
+      <h2 style=\"color:#0f88c9\">Restablece tu contraseña</h2>
+      <p>Hola {escape(usuario.nombre)}, recibimos una solicitud para cambiar la contraseña de tu cuenta.</p>
+      <p><a href=\"{enlace}\" style=\"display:inline-block;padding:13px 20px;border-radius:8px;background:#168ecf;color:#fff;text-decoration:none;font-weight:bold\">Crear nueva contraseña</a></p>
+      <p>Este enlace vence en 15 minutos y solo puede usarse una vez.</p>
+      <p>Si no solicitaste este cambio, puedes ignorar este correo.</p>
+    </div>
+    """
+    payload = {
+        'sender': {'email': remitente, 'name': app.config['MAIL_FROM_NAME']},
+        'to': [{'email': usuario.correo, 'name': usuario.nombre}],
+        'subject': 'Restablece tu contraseña | Láminas y Tableros Montoya',
+        'htmlContent': contenido,
+    }
+    try:
+        respuesta = requests.post(
+            'https://api.brevo.com/v3/smtp/email',
+            headers={'api-key': api_key, 'accept': 'application/json', 'content-type': 'application/json'},
+            json=payload,
+            timeout=12,
+        )
+        if respuesta.ok:
+            app.logger.info('Correo de recuperación enviado para usuario=%s.', usuario.id_usuario)
+            return True
+        app.logger.warning('Brevo rechazó un correo de recuperación: estado=%s.', respuesta.status_code)
+    except requests.RequestException:
+        app.logger.exception('No fue posible comunicarse con Brevo para recuperación de contraseña.')
+    return False
 
 
 @app.context_processor
@@ -355,18 +428,69 @@ def autorizar_google():
 
 
 @app.route('/recuperar-contrasena', methods=['GET', 'POST'])
-@limiter.limit('5 per minute')
+@limiter.limit('3 per hour')
 def recuperar_contrasena():
     if request.method == 'POST':
         correo = request.form['correo'].strip().lower()
-        if Usuario.query.filter_by(correo=correo).first():
-            solicitud = SolicitudRecuperacion(correo=correo)
-            db.session.add(solicitud)
+        usuario = Usuario.query.filter_by(correo=correo).first()
+        if usuario:
+            ahora = datetime.utcnow()
+            # Un nuevo enlace anula cualquiera anterior que aún no se hubiera usado.
+            TokenRecuperacionContrasena.query.filter(
+                TokenRecuperacionContrasena.id_usuario == usuario.id_usuario,
+                TokenRecuperacionContrasena.usado_en.is_(None),
+            ).update({'usado_en': ahora}, synchronize_session=False)
+            token = secrets.token_urlsafe(32)
+            registro = TokenRecuperacionContrasena(
+                id_usuario=usuario.id_usuario,
+                token_hash=hash_token_recuperacion(token),
+                fecha_expiracion=ahora + timedelta(minutes=15),
+            )
+            db.session.add(registro)
             db.session.commit()
-        # El mensaje no revela si un correo está registrado.
-        flash('Si el correo está registrado, un administrador recibirá tu solicitud de recuperación.', 'success')
+            if not enviar_correo_recuperacion(usuario, url_restablecimiento_publica(token)):
+                # No conservamos un token que el usuario no pudo recibir.
+                db.session.delete(registro)
+                db.session.commit()
+        # Mensaje genérico: no revela si el correo existe en la aplicación.
+        flash('Si el correo está registrado, recibirás un enlace de recuperación. Revisa también tu carpeta de spam.', 'success')
         return redirect(url_for('iniciar_sesion'))
     return render_template('acceso.html', modo='recuperar')
+
+
+@app.route('/restablecer-contrasena/<token>', methods=['GET', 'POST'])
+@limiter.limit('10 per hour')
+def restablecer_contrasena(token):
+    registro = TokenRecuperacionContrasena.query.filter_by(
+        token_hash=hash_token_recuperacion(token)
+    ).first()
+    ahora = datetime.utcnow()
+    if not registro or registro.usado_en or registro.fecha_expiracion < ahora:
+        flash('Este enlace ya fue usado o venció. Solicita uno nuevo.', 'warning')
+        return redirect(url_for('recuperar_contrasena'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        confirmar_password = request.form.get('confirmar_password', '')
+        if len(password) < 8:
+            flash('La contraseña debe tener al menos 8 caracteres.', 'danger')
+            return render_template('acceso.html', modo='restablecer', token=token)
+        if password != confirmar_password:
+            flash('Las contraseñas no coinciden.', 'danger')
+            return render_template('acceso.html', modo='restablecer', token=token)
+
+        registro.usuario.password_hash = generate_password_hash(password)
+        registro.usado_en = ahora
+        TokenRecuperacionContrasena.query.filter(
+            TokenRecuperacionContrasena.id_usuario == registro.id_usuario,
+            TokenRecuperacionContrasena.usado_en.is_(None),
+            TokenRecuperacionContrasena.id_token != registro.id_token,
+        ).update({'usado_en': ahora}, synchronize_session=False)
+        db.session.commit()
+        flash('Tu contraseña fue actualizada. Ya puedes iniciar sesión.', 'success')
+        return redirect(url_for('iniciar_sesion'))
+
+    return render_template('acceso.html', modo='restablecer', token=token)
 
 
 @app.route('/cerrar-sesion')

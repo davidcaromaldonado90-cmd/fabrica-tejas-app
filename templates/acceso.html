@@ -120,22 +120,44 @@
       {% elif modo=='recuperar' %}
       <p class="eyebrow">RECUPERAR CONTRASEÑA</p>
 <h1>Recupera tu acceso</h1>
-<p class="intro">Indica tu correo. Un administrador atenderá tu solicitud.</p>
+<p class="intro">Indica tu correo y te enviaremos un enlace seguro para crear una nueva contraseña.</p>
 <form method="POST">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label class="label">Correo electrónico</label>
 <div class="field">
 <i class="bi bi-envelope">
 </i>
-<input class="input" name="correo" type="email" required>
+<input class="input" name="correo" type="email" required autocomplete="email">
 </div>
-<button class="button">Enviar solicitud <i class="bi bi-send ms-1">
+<button class="button">Enviar enlace <i class="bi bi-send ms-1">
 </i>
 </button>
 </form>
 <p class="footer">
 <a href="/iniciar-sesion">Volver a iniciar sesión</a>
 </p>
+      {% elif modo=='restablecer' %}
+      <p class="eyebrow">NUEVA CONTRASEÑA</p>
+<h1>Protege tu cuenta</h1>
+<p class="intro">Elige una nueva contraseña. Este enlace es personal y solo puede utilizarse una vez.</p>
+<form method="POST">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label class="label">Nueva contraseña</label>
+<div class="field">
+<i class="bi bi-shield-lock">
+</i>
+<input class="input" name="password" type="password" minlength="8" required autocomplete="new-password">
+</div>
+<label class="label">Confirmar contraseña</label>
+<div class="field">
+<i class="bi bi-shield-check">
+</i>
+<input class="input" name="confirmar_password" type="password" minlength="8" required autocomplete="new-password">
+</div>
+<button class="button">Actualizar contraseña <i class="bi bi-check2-circle ms-1">
+</i>
+</button>
+</form>
       {% else %}
       <p class="eyebrow">CONFIGURACIÓN ÚNICA</p>
 <h1>Crea el administrador</h1>
