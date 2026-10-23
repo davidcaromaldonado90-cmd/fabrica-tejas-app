@@ -145,6 +145,15 @@ class TokenRecuperacionContrasena(db.Model):
     usuario = db.relationship('Usuario', backref='tokens_recuperacion')
 
 
+def asegurar_tabla_tokens_recuperacion():
+    """Crea la tabla de recuperación si una instancia antigua omitió la migración."""
+    TokenRecuperacionContrasena.__table__.create(bind=db.engine, checkfirst=True)
+
+
+with app.app_context():
+    asegurar_tabla_tokens_recuperacion()
+
+
 class Inventario(db.Model):
     __tablename__ = 'inventario'
     id_inventario = db.Column(db.Integer, primary_key=True)
