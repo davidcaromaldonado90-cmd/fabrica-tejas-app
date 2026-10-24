@@ -71,6 +71,10 @@
 </i>
 <span>Nuevo pedido</span>
 </a>
+<a href="/cotizaciones">
+<i class="bi bi-file-earmark-text"></i>
+<span>Cotizaciones</span>
+</a>
 <a href="/calendario">
 <i class="bi bi-calendar3">
 </i>
@@ -92,6 +96,10 @@
 <i class="bi bi-box-seam">
 </i>
 <span>Productos</span>
+</a>
+<a href="/cotizaciones">
+<i class="bi bi-file-earmark-text"></i>
+<span>Cotizaciones</span>
 </a>
 <a href="/pedidos">
 <i class="bi bi-receipt">
@@ -157,11 +165,14 @@
 <h1 class="title">{% block encabezado %}Panel{% endblock %}</h1>
 <p class="subtitle">{% block subtitulo %}{% endblock %}</p>
 </div>
+<div class="topbar-tools">
+<form class="topbar-search" action="{{ url_for('buscar_global') }}" method="get"><i class="bi bi-search"></i><input name="q" aria-label="Buscar en el sistema" placeholder="Buscar en el sistema"></form>
 <div class="topbar-date">
 <i class="bi bi-calendar3">
 </i>
 <span id="fecha">
 </span>
+</div>
 </div>
 </header>
     {% with messages = get_flashed_messages(with_categories=true) %}{% for categoria, mensaje in messages %}<div class="flash flash-{{ categoria }}">
