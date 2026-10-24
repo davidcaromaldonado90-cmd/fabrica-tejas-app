@@ -2,6 +2,7 @@ import os
 import logging
 import hashlib
 import secrets
+from html import escape
 from io import BytesIO
 from functools import wraps
 from datetime import datetime, date, timedelta
