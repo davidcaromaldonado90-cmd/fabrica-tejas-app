@@ -132,16 +132,15 @@
 </a>
     </nav>
     <div class="user-box">
-    <div class="theme-control" aria-label="Apariencia de la aplicación">
+<span class="user-avatar">{{ session.get('usuario_nombre', 'U')[0]|upper }}</span>
+<div class="user-details">
+<div class="user-name-row"><strong>{{ session.get('usuario_nombre') }}</strong><div class="theme-control" aria-label="Apariencia de la aplicación">
       <i class="bi bi-moon-stars-fill" aria-hidden="true"></i>
-      <span>Tema oscuro</span>
+      <span>Oscuro</span>
       <button class="theme-switch" id="themeToggle" type="button" role="switch" aria-checked="true" aria-label="Cambiar a modo claro">
         <span></span>
       </button>
-    </div>
-<span class="user-avatar">{{ session.get('usuario_nombre', 'U')[0]|upper }}</span>
-<div>
-<strong>{{ session.get('usuario_nombre') }}</strong>
+    </div></div>
 <small>{{ rol }}</small>
 </div>
 <a class="logout" href="/cerrar-sesion" title="Cerrar sesión">
@@ -223,7 +222,7 @@ const sidebarToggle=document.getElementById('sidebarToggle');
 const applySidebarState=collapsed=>{document.querySelector('.app-shell').classList.toggle('sidebar-collapsed',collapsed);sidebarToggle.setAttribute('aria-expanded',String(!collapsed));sidebarToggle.setAttribute('aria-label',collapsed?'Expandir barra lateral':'Minimizar barra lateral');sidebarToggle.title=collapsed?'Expandir barra lateral':'Minimizar barra lateral';document.querySelectorAll('.primary-nav a').forEach(link=>{link.title=collapsed?link.textContent.trim():''})};
 try{applySidebarState(localStorage.getItem('sidebar-collapsed')==='true');sidebarToggle.addEventListener('click',()=>{const collapsed=!document.querySelector('.app-shell').classList.contains('sidebar-collapsed');applySidebarState(collapsed);localStorage.setItem('sidebar-collapsed',String(collapsed))})}catch(error){sidebarToggle.addEventListener('click',()=>applySidebarState(!document.querySelector('.app-shell').classList.contains('sidebar-collapsed')))}
 const themeToggle=document.getElementById('themeToggle');
-const applyTheme=theme=>{const dark=theme!=='light';document.body.dataset.theme=dark?'dark':'light';themeToggle.setAttribute('aria-checked',String(dark));themeToggle.setAttribute('aria-label',dark?'Cambiar a modo claro':'Cambiar a modo oscuro');themeToggle.previousElementSibling.className=dark?'bi bi-moon-stars-fill':'bi bi-sun-fill';themeToggle.parentElement.querySelector('span').textContent=dark?'Tema oscuro':'Tema claro';};
+const applyTheme=theme=>{const dark=theme!=='light';document.body.dataset.theme=dark?'dark':'light';themeToggle.setAttribute('aria-checked',String(dark));themeToggle.setAttribute('aria-label',dark?'Cambiar a modo claro':'Cambiar a modo oscuro');themeToggle.previousElementSibling.className=dark?'bi bi-moon-stars-fill':'bi bi-sun-fill';themeToggle.parentElement.querySelector('span').textContent=dark?'Oscuro':'Claro';};
 try{applyTheme(localStorage.getItem('app-theme')||'dark');themeToggle.addEventListener('click',()=>{const next=document.body.dataset.theme==='dark'?'light':'dark';applyTheme(next);localStorage.setItem('app-theme',next)})}catch(error){themeToggle.addEventListener('click',()=>applyTheme(document.body.dataset.theme==='dark'?'light':'dark'))}
 </script>
 {% block scripts %}{% endblock %}

@@ -896,26 +896,46 @@ def exportar_reporte(formato):
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.units import inch
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         salida = BytesIO(); documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=38, leftMargin=38, topMargin=44, bottomMargin=38)
         estilos = getSampleStyleSheet(); total = sum(fila[4] for fila in filas)
+        estilos.add(ParagraphStyle(name='ReportIntro', parent=estilos['Normal'], textColor=colors.HexColor('#527086'), fontSize=9, leading=13))
+        estilos.add(ParagraphStyle(name='ReportFoot', parent=estilos['Normal'], textColor=colors.HexColor('#527086'), fontSize=8, leading=11))
         estados = {estado: sum(1 for fila in filas if fila[3] == estado) for estado in ('Pendiente', 'Listo para entrega', 'Entregado')}
         titulo = 'REPORTE COMERCIAL' if mostrar_valor else 'REPORTE OPERATIVO'
         cabecera = crear_cabecera_pdf(estilos, titulo, '<b>GENERADO</b><br/><font size="9">' + datetime.now(ZoneInfo('America/Bogota')).strftime('%d/%m/%Y %H:%M') + '</font>')
-        tarjetas = [['PEDIDOS', str(len(filas)), 'PENDIENTES', str(estados['Pendiente'])]]
+        periodo_texto = f'Desde {fecha_inicio} hasta {fecha_fin}' if fecha_inicio and fecha_fin else ('Todos los pedidos registrados' if periodo == 'todos' else f'Últimos {periodo} días')
+        etiquetas_kpi = ['PEDIDOS', 'PENDIENTES', 'LISTOS PARA ENTREGA', 'ENTREGADOS']
+        valores_kpi = [str(len(filas)), str(estados['Pendiente']), str(estados['Listo para entrega']), str(estados['Entregado'])]
         if mostrar_valor:
-            tarjetas[0] += ['VALOR TOTAL', f'${total:,.0f}']
-        else:
-            tarjetas[0] += ['LISTOS PARA ENTREGA', str(estados['Listo para entrega'])]
-        kpis = Table(tarjetas, colWidths=([1.15*inch, .8*inch] * 3))
-        kpis.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#E9F6FC')),('TEXTCOLOR',(0,0),(-1,-1),colors.HexColor('#0D4D86')),('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),9),('BOX',(0,0),(-1,-1),.5,colors.HexColor('#CFE4F0')),('INNERGRID',(0,0),(-1,-1),.5,colors.HexColor('#CFE4F0')),('ALIGN',(0,0),(-1,-1),'CENTER'),('PADDING',(0,0),(-1,-1),12)]))
+            etiquetas_kpi.append('VALOR TOTAL'); valores_kpi.append(f'${total:,.0f}')
+        kpis = Table([etiquetas_kpi, valores_kpi], colWidths=[6.95 * inch / len(etiquetas_kpi)] * len(etiquetas_kpi))
+        kpis.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#E9F6FC')),('BACKGROUND',(0,1),(-1,1),colors.white),('TEXTCOLOR',(0,0),(-1,0),colors.HexColor('#397595')),('TEXTCOLOR',(0,1),(-1,1),colors.HexColor('#092B52')),('FONTNAME',(0,0),(-1,-1),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,0),7),('FONTSIZE',(0,1),(-1,1),12),('BOX',(0,0),(-1,-1),.6,colors.HexColor('#B9DDEB')),('INNERGRID',(0,0),(-1,-1),.45,colors.HexColor('#CFE4F0')),('ALIGN',(0,0),(-1,-1),'CENTER'),('TOPPADDING',(0,0),(-1,0),8),('BOTTOMPADDING',(0,0),(-1,0),5),('TOPPADDING',(0,1),(-1,1),6),('BOTTOMPADDING',(0,1),(-1,1),11)]))
+        resumen_datos = [['Estado', 'Pedidos', 'Participación'] + (['Valor asociado'] if mostrar_valor else [])]
+        for estado in ('Pendiente', 'Listo para entrega', 'Entregado'):
+            cantidad = estados[estado]
+            porcentaje = f'{(cantidad / len(filas) * 100):.0f}%' if filas else '0%'
+            fila_estado = [estado, str(cantidad), porcentaje]
+            if mostrar_valor:
+                valor_estado = sum(fila[4] for fila in filas if fila[3] == estado)
+                fila_estado.append(f'${valor_estado:,.0f}')
+            resumen_datos.append(fila_estado)
+        resumen_estados = Table(resumen_datos, colWidths=[2.7 * inch, 1.0 * inch, 1.25 * inch] + ([2.0 * inch] if mostrar_valor else []))
+        resumen_estados.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#123F68')),('TEXTCOLOR',(0,0),(-1,0),colors.white),('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),8),('GRID',(0,0),(-1,-1),.3,colors.HexColor('#CFE4F0')),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F5FBFE')]),('ALIGN',(1,1),(-1,-1),'CENTER'),('PADDING',(0,0),(-1,-1),7)]))
         data = [encabezados]
         for fila in filas:
             data.append([fila[0], fila[1], fila[2].strftime('%d/%m/%Y'), fila[3]] + ([f'${fila[4]:,.0f}'] if mostrar_valor else []))
+        if not filas:
+            data.append(['Sin pedidos en el periodo seleccionado'] + [''] * (len(encabezados) - 1))
         tabla = Table(data, repeatRows=1, colWidths=[52, 185, 76, 105] + ([78] if mostrar_valor else []))
-        tabla.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('FONTSIZE', (0, 0), (-1, -1), 8), ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F5FBFE')]), ('BOTTOMPADDING', (0, 0), (-1, -1), 8), ('TOPPADDING', (0, 0), (-1, -1), 8)]))
-        documento.build([cabecera, Spacer(1, 16), kpis, Spacer(1, 20), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 16), Paragraph('Documento generado por el sistema de gestión de LÁMINAS Y TABLEROS MONTOYA.', estilos['Normal'])])
+        estilo_tabla = [('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1279C9')), ('TEXTCOLOR', (0, 0), (-1, 0), colors.white), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .25, colors.HexColor('#CFE4F0')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('FONTSIZE', (0, 0), (-1, -1), 8), ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F5FBFE')]), ('BOTTOMPADDING', (0, 0), (-1, -1), 9), ('TOPPADDING', (0, 0), (-1, -1), 9)]
+        if not filas:
+            estilo_tabla.extend([('SPAN', (0, 1), (-1, 1)), ('ALIGN', (0, 1), (-1, 1), 'CENTER'), ('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor('#527086'))])
+        tabla.setStyle(TableStyle(estilo_tabla))
+        notas = Table([[Paragraph('<b>SEGUIMIENTO DEL PERIODO</b><br/>El reporte consolida los pedidos registrados en el periodo seleccionado. Verifica los pedidos pendientes y los listos para entrega para programar producción, despacho y recaudo.', estilos['ReportIntro']), Paragraph('<b>CONTROL INTERNO</b><br/><br/>Responsable: __________________________<br/><br/>Revisado por: __________________________', estilos['ReportIntro'])]], colWidths=[4.25 * inch, 2.7 * inch])
+        notas.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F5FBFE')),('BOX',(0,0),(-1,-1),.55,colors.HexColor('#CFE4F0')),('LINEBEFORE',(1,0),(1,-1),.45,colors.HexColor('#CFE4F0')),('VALIGN',(0,0),(-1,-1),'TOP'),('PADDING',(0,0),(-1,-1),12)]))
+        documento.build([cabecera, Spacer(1, 13), Paragraph(f'<b>Periodo analizado:</b> {periodo_texto}', estilos['ReportIntro']), Spacer(1, 12), kpis, Spacer(1, 18), Paragraph('Estado de la operación', estilos['Heading2']), Spacer(1, 7), resumen_estados, Spacer(1, 18), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 18), notas, Spacer(1, 15), Paragraph('Documento generado por el sistema de gestión de LÁMINAS Y TABLEROS MONTOYA.', estilos['ReportFoot'])])
         salida.seek(0)
         return send_file(salida, as_attachment=True, download_name='reporte_pedidos.pdf', mimetype='application/pdf')
     return redirect(url_for('reportes'))

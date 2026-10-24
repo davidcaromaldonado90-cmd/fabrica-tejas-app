@@ -11,7 +11,6 @@
 <a href="{{ url_for('historial_pedido', id=pedido.id_pedido) }}" class="btn btn-light">
 <i class="bi bi-clock-history me-1">
 </i>Historial</a>
-<a href="{{ url_for('remision_pdf', id=pedido.id_pedido) }}" class="btn btn-light"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
 <button onclick="window.print()" class="btn btn-primary">
 <i class="bi bi-printer me-1">
 </i>Imprimir remisión</button>
@@ -111,5 +110,21 @@
 </article>
 <style>
 .remision{max-width:1050px;margin:auto;padding:36px}.remision-header{display:flex;justify-content:space-between;gap:25px;padding-bottom:25px;border-bottom:2px solid var(--green)}.remision-brand{display:flex;align-items:center;gap:13px}.remision-mark{display:grid;place-items:center;width:62px;height:54px;border-radius:12px;background:#fff;overflow:hidden}.remision-logo img{width:100%;height:100%;object-fit:contain;padding:3px}.remision-brand strong{display:block;font-size:1.15rem;letter-spacing:.5px}.remision-brand small,.remision-number small{display:block;color:var(--muted);margin-top:3px}.remision-number{text-align:right}.remision-number span,.info-label{display:block;margin:0 0 5px;color:var(--muted);font-size:.7rem;font-weight:700;letter-spacing:1px}.remision-number strong{display:block;color:var(--primary);font-size:1.7rem}.remision-info{display:grid;grid-template-columns:1.4fr 1fr;gap:30px;padding:28px 0}.remision-info strong,.remision-info span:not(.badge-soft){display:block;margin-bottom:4px}.remision-table{border:1px solid var(--line)}.remision-table th{background:#f4f8f5}.remision-bottom{display:grid;grid-template-columns:1fr 280px;gap:35px;padding:30px 0}.delivery-note{padding:15px 0}.line{height:27px;border-bottom:1px solid var(--line)}.total-box{align-self:end;padding:19px;background:var(--lilac);text-align:right;border-radius:12px}.total-box span{display:block;color:#5b4290;font-size:.72rem;font-weight:700;letter-spacing:.8px}.total-box strong{display:block;margin-top:5px;color:var(--primary);font-size:1.55rem}.total-box small{font-size:.72rem}.remision-footer{display:grid;grid-template-columns:1fr 1fr;gap:55px;padding-top:28px;border-top:1px solid var(--line)}.remision-footer span{color:var(--muted);font-size:.8rem}.signature-line{height:45px;border-bottom:1px solid #9aa9a1}.remision-footer p{grid-column:1/-1;margin:5px 0 0;text-align:center;color:var(--muted);font-size:.75rem}@media(max-width:650px){.remision{padding:22px}.remision-header,.remision-info,.remision-bottom{display:block}.remision-number{text-align:left;margin-top:20px}.total-box{margin-top:20px}.remision-footer{gap:20px}.no-print{gap:10px}}@media print{@page{size:letter;margin:11mm}html,body{background:#fff!important;color:#102f46!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sidebar,.mobile-nav,.top,.topbar,.no-print,.scroll-top,.scroll-progress{display:none!important}.app-shell,.main{display:block!important;margin:0!important;padding:0!important;background:#fff!important}.remision{max-width:none!important;padding:22px!important;border:1px solid #1f6b8b!important;border-radius:12px!important;box-shadow:none!important;background:#fff!important;color:#102f46!important}.remision *{color:#102f46!important;text-shadow:none!important}.remision-header{border-color:#168fc4!important}.remision-brand strong,.remision-number strong,.total-box strong{color:#092b52!important}.remision-number span,.info-label,.remision-brand small,.remision-number small,.remision-footer span,.remision-footer p,.remision-table small{color:#477087!important}.remision-table{border-color:#246b88!important}.remision-table th{padding:9px!important;background:#092b52!important;color:#fff!important;border-color:#246b88!important}.remision-table td{padding:9px!important;background:#fff!important;color:#102f46!important;border-color:#bad9e5!important}.remision-table tbody tr:nth-child(even) td{background:#eef8fc!important}.remision-table strong{color:#092b52!important}.badge-soft{color:#075779!important;background:#e0f4f8!important;border:1px solid #82c9da!important}.total-box{background:#eaf7fc!important;border:1px solid #b5dfe9!important}.total-box span{color:#236b86!important}.line,.signature-line{border-color:#658fa2!important}.remision-footer{margin-top:15px!important}}
+</style>
+<style>
+@media print {
+  .remision-table tbody td,
+  .remision-table tbody td *,
+  .remision-table tbody td .text-secondary {
+    color: #102f46 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    font-size: 9.5pt !important;
+  }
+  .remision-table tbody td small { color: #477087 !important; }
+  .remision-table tbody td strong { color: #092b52 !important; }
+  .remision-table tbody tr:nth-child(even) td,
+  .remision-table tbody tr:nth-child(even) td * { background-color: #eef8fc !important; }
+}
 </style>
 {% endblock %}
