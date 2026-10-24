@@ -875,8 +875,7 @@ def mis_pedidos():
 @app.route('/usuarios')
 @roles_requeridos('Administrador')
 def usuarios():
-    solicitudes = SolicitudRecuperacion.query.filter_by(estado='Pendiente').order_by(SolicitudRecuperacion.fecha_solicitud.desc()).all()
-    return render_template('usuarios.html', usuarios=Usuario.query.order_by(Usuario.nombre).all(), solicitudes=solicitudes)
+    return render_template('usuarios.html', usuarios=Usuario.query.order_by(Usuario.nombre).all())
 
 
 @app.route('/usuarios/<int:id>/rol', methods=['POST'])
