@@ -335,3 +335,41 @@ body[data-theme="light"] .row-alert:hover > td { background: #fff4e5 !important;
 
 /* Búsqueda global y documentos comerciales. */
 .topbar-tools{display:flex;align-items:center;gap:12px}.topbar-search{display:flex;align-items:center;gap:7px;min-width:220px;height:34px;padding:0 11px;border:1px solid #24536b;border-radius:999px;background:rgba(12,44,64,.72);color:#94c9d7}.topbar-search input{width:100%;border:0;outline:0;background:transparent;color:#e8f8fb;font-size:.75rem}.topbar-search input::placeholder{color:#8eadba}.search-global-form{max-width:720px;margin:auto}.list-group-item{border-color:#1e4c62!important;background:transparent!important;color:#dceff4!important}.list-group-item small{display:block;margin-top:3px;color:#9bb8c6}.list-group-item:hover{background:#103a51!important;color:#fff!important}.list-group-item:hover small{color:#bce3ec}.permission-card{height:100%;padding:18px;border:1px solid #1e4c62;border-radius:14px;background:#0c3047}.permission-card i{color:#67dce8}.permission-card small{display:block;margin-top:7px;color:#9bb8c6;line-height:1.45}body[data-theme="light"] .list-group-item{border-color:#e0eaf0!important;color:#172e43!important}body[data-theme="light"] .list-group-item small{color:#63798c}body[data-theme="light"] .list-group-item:hover{background:#f7fbfd!important}body[data-theme="light"] .permission-card{border-color:#d8e5ed;background:#f7fbfd}@media(max-width:760px){.topbar-search{display:none}}
+
+/* Contraste definitivo para el modo claro: estas reglas deben prevalecer sobre el tema nocturno base. */
+body[data-theme="light"] .content-card,
+body[data-theme="light"] .payment-metric,
+body[data-theme="light"] .payment-preview,
+body[data-theme="light"] .calendar-day { background: #ffffff !important; color: #172e43 !important; }
+body[data-theme="light"] .content-card *,
+body[data-theme="light"] .payment-metric *,
+body[data-theme="light"] .payment-preview * { border-color: #d8e5ed; }
+body[data-theme="light"] .executive-card small,
+body[data-theme="light"] .executive-card span,
+body[data-theme="light"] .executive-payments p small,
+body[data-theme="light"] .empty,
+body[data-theme="light"] .text-secondary,
+body[data-theme="light"] .subtitle { color: #63798c !important; opacity: 1 !important; }
+body[data-theme="light"] .executive-card strong,
+body[data-theme="light"] .executive-payments p strong,
+body[data-theme="light"] .executive-payments b,
+body[data-theme="light"] .dashboard-data-card .metric-number,
+body[data-theme="light"] .summary-item strong,
+body[data-theme="light"] .monthly-summary strong,
+body[data-theme="light"] .table strong { color: #0b2e50 !important; text-shadow: none !important; opacity: 1 !important; }
+body[data-theme="light"] .executive-card .executive-icon,
+body[data-theme="light"] .executive-payment-icon,
+body[data-theme="light"] .dashboard-data-icon { border-color: #cfe5ee !important; background: #eaf7fc !important; color: #167cc0 !important; }
+body[data-theme="light"] .executive-income:after { background: #37b68d !important; opacity: .15 !important; }
+body[data-theme="light"] .executive-receivable:after { background: #e2a34c !important; opacity: .15 !important; }
+body[data-theme="light"] .executive-alert:after { background: #de7954 !important; opacity: .15 !important; }
+body[data-theme="light"] .card-header-custom,
+body[data-theme="light"] .table-filters { background: #fbfdfe !important; }
+body[data-theme="light"] .table > thead > tr > th { background: #eff7fa !important; color: #527086 !important; }
+body[data-theme="light"] .table > tbody > tr > td { background: #ffffff !important; color: #172e43 !important; }
+body[data-theme="light"] .table > tbody > tr:hover > td { background: #f7fbfd !important; }
+body[data-theme="light"] .topbar-search { border-color: #cbdde7; background: #ffffff; color: #527086; }
+body[data-theme="light"] .topbar-search input { color: #172e43; }
+body[data-theme="light"] .topbar-search input::placeholder { color: #7890a0; }
+body[data-theme="light"] .user-box .theme-control { color: #d4eef5; }
+body[data-theme="light"] .metric-number.is-counting { color: #167cc0 !important; text-shadow: none !important; }

@@ -19,7 +19,7 @@
 <article class="content-card remision">
   <header class="remision-header">
 <div class="remision-brand">
-<span class="remision-mark remision-logo"><img src="{{ url_for('static', filename='images/logo-montoya.png') }}" alt="Láminas y Tableros Montoya"></span>
+<span class="remision-mark remision-logo"><img src="{{ url_for('static', filename='images/logo-montoya.png') }}" alt="Laminas y Tableros Montoya"></span>
 <div>
 <strong>LAMINAS Y TABLEROS MONTOYA</strong>
 <small>Fábrica de tejas y cubiertas</small>
@@ -66,13 +66,13 @@
 <br>
 <small class="text-secondary">Referencia #{{ detalle.producto.id_producto }}</small>
 </td>
-<td>Calibre {{ detalle.producto.calibre }}{% if detalle.producto.desarrollo %}<br>
+<td class="print-data">Calibre {{ detalle.producto.calibre }}{% if detalle.producto.desarrollo %}<br>
 <small>Desarrollo {{ detalle.producto.desarrollo }}</small>{% endif %}</td>
-<td>{{ detalle.color or 'Sin especificar' }}</td>
-<td>{{ detalle.medida_metros }} m</td>
-<td>{{ detalle.cantidad }} und.</td>
-<td>${{ '{:,.0f}'.format(detalle.producto.precio_por_metro) }}</td>
-<td class="text-end">
+<td class="print-data">{{ detalle.color or 'Sin especificar' }}</td>
+<td class="print-data">{{ detalle.medida_metros }} m</td>
+<td class="print-data">{{ detalle.cantidad }} und.</td>
+<td class="print-data">${{ '{:,.0f}'.format(detalle.producto.precio_por_metro) }}</td>
+<td class="text-end print-data">
 <strong>${{ '{:,.0f}'.format(detalle.subtotal) }}</strong>
 </td>
 </tr>{% endfor %}</tbody>
@@ -113,6 +113,22 @@
 </style>
 <style>
 @media print {
+  body[data-theme="dark"] .remision,
+  body[data-theme="dark"] .remision-table,
+  body[data-theme="dark"] .remision-table tbody,
+  body[data-theme="dark"] .remision-table tbody tr,
+  body[data-theme="dark"] .remision-table tbody td {
+    background: #ffffff !important;
+    color: #102f46 !important;
+    -webkit-text-fill-color: #102f46 !important;
+  }
+  body[data-theme="dark"] .remision-table tbody tr:nth-child(even) td { background: #eef8fc !important; }
+  body[data-theme="dark"] .remision-table tbody td:not(:first-child),
+  body[data-theme="dark"] .remision-table tbody td:not(:first-child) * {
+    color: #102f46 !important;
+    -webkit-text-fill-color: #102f46 !important;
+    opacity: 1 !important;
+  }
   .remision-table tbody td,
   .remision-table tbody td *,
   .remision-table tbody td .text-secondary {
@@ -123,6 +139,18 @@
   }
   .remision-table tbody td small { color: #477087 !important; }
   .remision-table tbody td strong { color: #092b52 !important; }
+  .remision-table tbody td.print-data,
+  .remision-table tbody td.print-data * {
+    color: #102f46 !important;
+    -webkit-text-fill-color: #102f46 !important;
+    opacity: 1 !important;
+    font-weight: 600 !important;
+  }
+  .remision-table tbody td.print-data small {
+    color: #477087 !important;
+    -webkit-text-fill-color: #477087 !important;
+    font-weight: 500 !important;
+  }
   .remision-table tbody tr:nth-child(even) td,
   .remision-table tbody tr:nth-child(even) td * { background-color: #eef8fc !important; }
 }

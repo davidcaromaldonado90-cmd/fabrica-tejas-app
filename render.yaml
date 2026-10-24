@@ -18,6 +18,6 @@ services:
       - key: MAIL_FROM_EMAIL
         sync: false
       - key: MAIL_FROM_NAME
-        value: Láminas y Tableros Montoya
+        value: Laminas y Tableros Montoya
       - key: APP_BASE_URL
         value: https://fabrica-tejas-app.onrender.com

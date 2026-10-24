@@ -45,7 +45,7 @@ app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
 app.config['GOOGLE_REDIRECT_URI'] = os.environ.get('GOOGLE_REDIRECT_URI')
 app.config['BREVO_API_KEY'] = os.environ.get('BREVO_API_KEY')
 app.config['MAIL_FROM_EMAIL'] = os.environ.get('MAIL_FROM_EMAIL')
-app.config['MAIL_FROM_NAME'] = os.environ.get('MAIL_FROM_NAME', 'Láminas y Tableros Montoya')
+app.config['MAIL_FROM_NAME'] = os.environ.get('MAIL_FROM_NAME', 'Laminas y Tableros Montoya')
 app.config['APP_BASE_URL'] = os.environ.get('APP_BASE_URL', '').rstrip('/')
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO'), format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 db = SQLAlchemy(app)
@@ -321,7 +321,7 @@ def enviar_correo_recuperacion(usuario, enlace):
     payload = {
         'sender': {'email': remitente, 'name': app.config['MAIL_FROM_NAME']},
         'to': [{'email': usuario.correo, 'name': usuario.nombre}],
-        'subject': 'Restablece tu contraseña | Láminas y Tableros Montoya',
+        'subject': 'Restablece tu contraseña | Laminas y Tableros Montoya',
         'htmlContent': contenido,
     }
     try:
@@ -765,7 +765,7 @@ def crear_cabecera_pdf(estilos, tipo_documento, detalle):
 
     logo_path = os.path.join(app.static_folder, 'images', 'logo-montoya-recortado.png')
     logo = Image(logo_path, width=1.35 * inch, height=.82 * inch) if os.path.exists(logo_path) else Paragraph('<b>LT</b>', estilos['Title'])
-    marca = Paragraph(f'<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9" color="#397595">{tipo_documento}</font>', estilos['Normal'])
+    marca = Paragraph(f'<b>LAMINAS Y TABLEROS MONTOYA</b><br/><font size="9" color="#397595">{tipo_documento}</font>', estilos['Normal'])
     meta = Paragraph(detalle, estilos['Normal'])
     encabezado = Table([[logo, marca, meta]], colWidths=[1.48 * inch, 3.62 * inch, 1.7 * inch])
     encabezado.setStyle(TableStyle([
@@ -935,7 +935,7 @@ def exportar_reporte(formato):
         tabla.setStyle(TableStyle(estilo_tabla))
         notas = Table([[Paragraph('<b>SEGUIMIENTO DEL PERIODO</b><br/>El reporte consolida los pedidos registrados en el periodo seleccionado. Verifica los pedidos pendientes y los listos para entrega para programar producción, despacho y recaudo.', estilos['ReportIntro']), Paragraph('<b>CONTROL INTERNO</b><br/><br/>Responsable: __________________________<br/><br/>Revisado por: __________________________', estilos['ReportIntro'])]], colWidths=[4.25 * inch, 2.7 * inch])
         notas.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#F5FBFE')),('BOX',(0,0),(-1,-1),.55,colors.HexColor('#CFE4F0')),('LINEBEFORE',(1,0),(1,-1),.45,colors.HexColor('#CFE4F0')),('VALIGN',(0,0),(-1,-1),'TOP'),('PADDING',(0,0),(-1,-1),12)]))
-        documento.build([cabecera, Spacer(1, 13), Paragraph(f'<b>Periodo analizado:</b> {periodo_texto}', estilos['ReportIntro']), Spacer(1, 12), kpis, Spacer(1, 18), Paragraph('Estado de la operación', estilos['Heading2']), Spacer(1, 7), resumen_estados, Spacer(1, 18), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 18), notas, Spacer(1, 15), Paragraph('Documento generado por el sistema de gestión de LÁMINAS Y TABLEROS MONTOYA.', estilos['ReportFoot'])])
+        documento.build([cabecera, Spacer(1, 13), Paragraph(f'<b>Periodo analizado:</b> {periodo_texto}', estilos['ReportIntro']), Spacer(1, 12), kpis, Spacer(1, 18), Paragraph('Estado de la operación', estilos['Heading2']), Spacer(1, 7), resumen_estados, Spacer(1, 18), Paragraph('Detalle de pedidos', estilos['Heading2']), Spacer(1, 8), tabla, Spacer(1, 18), notas, Spacer(1, 15), Paragraph('Documento generado por el sistema de gestión de LAMINAS Y TABLEROS MONTOYA.', estilos['ReportFoot'])])
         salida.seek(0)
         return send_file(salida, as_attachment=True, download_name='reporte_pedidos.pdf', mimetype='application/pdf')
     return redirect(url_for('reportes'))
@@ -1346,14 +1346,14 @@ def construir_pdf_cotizacion(cotizacion):
     estilos.add(ParagraphStyle(name='BrandSmall', parent=estilos['Normal'], textColor=colors.HexColor('#60788A'), fontSize=8, leading=11))
     estilos.add(ParagraphStyle(name='DocumentTitle', parent=estilos['Heading1'], textColor=colors.HexColor('#12344D'), fontSize=19, leading=23, spaceAfter=2))
     logo_path = os.path.join(app.static_folder, 'images', 'logo-montoya-recortado.png')
-    marca = Image(logo_path, width=1.45 * inch, height=1.1 * inch) if os.path.exists(logo_path) else Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b>', estilos['Title'])
+    marca = Image(logo_path, width=1.45 * inch, height=1.1 * inch) if os.path.exists(logo_path) else Paragraph('<b>LAMINAS Y TABLEROS MONTOYA</b>', estilos['Title'])
     tipo_documento = getattr(cotizacion, 'tipo_documento', 'COTIZACIÓN')
     etiqueta_fecha = 'Válida hasta' if tipo_documento == 'COTIZACIÓN' else 'Entrega programada'
     etiqueta_total = 'TOTAL ESTIMADO' if tipo_documento == 'COTIZACIÓN' else 'TOTAL DEL PEDIDO'
     datos_documento = Paragraph(
         f'<b>{tipo_documento} #{cotizacion.id_cotizacion:05d}</b><br/><font size="9">Emitida: {cotizacion.fecha_creacion.strftime("%d/%m/%Y")}<br/>{etiqueta_fecha}: {cotizacion.vigencia_hasta.strftime("%d/%m/%Y")}</font>',
         estilos['Normal'])
-    cabecera = Table([[marca, Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">Cubiertas metálicas y plásticas</font>', estilos['Normal']), datos_documento]], colWidths=[1.55 * inch, 3.05 * inch, 2.15 * inch])
+    cabecera = Table([[marca, Paragraph('<b>LAMINAS Y TABLEROS MONTOYA</b><br/><font size="9">Cubiertas metálicas y plásticas</font>', estilos['Normal']), datos_documento]], colWidths=[1.55 * inch, 3.05 * inch, 2.15 * inch])
     cabecera.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EDF8FC')), ('BOX', (0, 0), (-1, -1), .65, colors.HexColor('#B8DDEB')), ('PADDING', (0, 0), (-1, -1), 12), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (2, 0), (2, 0), 'RIGHT')]))
     cliente = Table([['CLIENTE', cotizacion.cliente.nombre_razon_social], ['IDENTIFICACIÓN', cotizacion.cliente.numero_identificacion], ['TELÉFONO', cotizacion.cliente.telefono or 'No registrado'], ['CORREO', cotizacion.cliente.correo or 'No registrado']], colWidths=[1.55 * inch, 5.2 * inch])
     cliente.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#12344D')), ('TEXTCOLOR', (0, 0), (0, -1), colors.white), ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#C9E2EC')), ('PADDING', (0, 0), (-1, -1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
@@ -1367,7 +1367,7 @@ def construir_pdf_cotizacion(cotizacion):
     es_remision = tipo_documento == 'REMISIÓN'
     nota = cotizacion.observacion or ('Remisión interna de producción y despacho.' if es_remision else 'Valores expresados en pesos colombianos. Esta cotización está sujeta a disponibilidad de inventario al momento de confirmar el pedido.')
     detalle_titulo = 'Detalle de despacho' if es_remision else 'Detalle cotizado'
-    pie_documento = 'Documento interno para validar producción, despacho y recibido.' if es_remision else 'Gracias por preferir LÁMINAS Y TABLEROS MONTOYA. Para aprobar esta cotización, comunícate con nuestro equipo comercial.'
+    pie_documento = 'Documento interno para validar producción, despacho y recibido.' if es_remision else 'Gracias por preferir LAMINAS Y TABLEROS MONTOYA. Para aprobar esta cotización, comunícate con nuestro equipo comercial.'
     contenido = [cabecera, Spacer(1, 16), Paragraph('Datos del cliente', estilos['Heading2']), Spacer(1, 6), cliente, Spacer(1, 18), Paragraph(detalle_titulo, estilos['Heading2']), Spacer(1, 6), tabla, Spacer(1, 14), total, Spacer(1, 16), Paragraph('<b>Observaciones</b><br/>' + escape(nota), estilos['BrandSmall']), Spacer(1, 18), Paragraph(pie_documento, estilos['BrandSmall'])]
     documento.build(contenido)
     salida.seek(0)
