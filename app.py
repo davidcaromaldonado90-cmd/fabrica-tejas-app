@@ -768,6 +768,27 @@ def pagos():
                            pagos_recientes=pagos_recientes)
 
 
+def crear_cabecera_pdf(estilos, tipo_documento, detalle):
+    """Encabezado uniforme con logo para documentos comerciales internos."""
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Table, TableStyle, Paragraph, Image
+
+    logo_path = os.path.join(app.static_folder, 'images', 'logo-montoya-recortado.png')
+    logo = Image(logo_path, width=1.35 * inch, height=.82 * inch) if os.path.exists(logo_path) else Paragraph('<b>LT</b>', estilos['Title'])
+    marca = Paragraph(f'<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9" color="#397595">{tipo_documento}</font>', estilos['Normal'])
+    meta = Paragraph(detalle, estilos['Normal'])
+    encabezado = Table([[logo, marca, meta]], colWidths=[1.48 * inch, 3.62 * inch, 1.7 * inch])
+    encabezado.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1FAFD')),
+        ('BOX', (0, 0), (-1, -1), .7, colors.HexColor('#A9D9E9')),
+        ('LINEBELOW', (0, 0), (-1, -1), 3, colors.HexColor('#168FC4')),
+        ('PADDING', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+    ]))
+    return encabezado
+
 @app.route('/pagos/<int:id>/comprobante.pdf')
 @roles_requeridos('Administrador')
 def comprobante_pago(id):
@@ -778,14 +799,13 @@ def comprobante_pago(id):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
     salida = BytesIO()
     documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=42, leftMargin=42, topMargin=42, bottomMargin=42)
     estilos = getSampleStyleSheet()
     estilos.add(ParagraphStyle(name='ReceiptNote', parent=estilos['Normal'], textColor=colors.HexColor('#63798C'), fontSize=8, leading=11))
-    encabezado = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">COMPROBANTE DE PAGO</font>', estilos['Title']), Paragraph(f'<b>RECIBO #{pago.id_pago:05d}</b><br/><font size="9">{pago.fecha.strftime("%d/%m/%Y %H:%M")}</font>', estilos['Normal'])]], colWidths=[4.65 * inch, 2.15 * inch])
-    encabezado.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#092B52')), ('TEXTCOLOR', (0, 0), (-1, -1), colors.white), ('PADDING', (0, 0), (-1, -1), 15), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    encabezado = crear_cabecera_pdf(estilos, 'COMPROBANTE DE PAGO', f'<b>RECIBO #{pago.id_pago:05d}</b><br/><font size="9">{pago.fecha.strftime("%d/%m/%Y %H:%M")}</font>')
     saldo_actual = saldo_pedido(pedido)
     detalle = [
         ['Cliente', pedido.cliente.nombre_razon_social],
@@ -812,7 +832,7 @@ def estado_cuenta_cliente(id):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
     total_facturado = sum(float(pedido.total_pedido or 0) for pedido in pedidos_cliente)
     total_pagado = sum(sum(float(pago.valor or 0) for pago in pedido.pagos) for pedido in pedidos_cliente)
@@ -821,8 +841,7 @@ def estado_cuenta_cliente(id):
     documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=34, leftMargin=34, topMargin=42, bottomMargin=42)
     estilos = getSampleStyleSheet()
     estilos.add(ParagraphStyle(name='AccountNote', parent=estilos['Normal'], textColor=colors.HexColor('#63798C'), fontSize=8, leading=11))
-    encabezado = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">ESTADO DE CUENTA</font>', estilos['Title']), Paragraph(f'<b>GENERADO</b><br/><font size="9">{datetime.now(ZoneInfo("America/Bogota")).strftime("%d/%m/%Y %H:%M")}</font>', estilos['Normal'])]], colWidths=[4.7 * inch, 2.1 * inch])
-    encabezado.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#092B52')), ('TEXTCOLOR', (0, 0), (-1, -1), colors.white), ('PADDING', (0, 0), (-1, -1), 15), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT')]))
+    encabezado = crear_cabecera_pdf(estilos, 'ESTADO DE CUENTA', f'<b>GENERADO</b><br/><font size="9">{datetime.now(ZoneInfo("America/Bogota")).strftime("%d/%m/%Y %H:%M")}</font>')
     resumen = Table([['CLIENTE', cliente.nombre_razon_social], ['IDENTIFICACIÓN', cliente.numero_identificacion], ['TOTAL FACTURADO', f'${total_facturado:,.0f} COP'], ['TOTAL PAGADO', f'${total_pagado:,.0f} COP'], ['SALDO PENDIENTE', f'${total_saldo:,.0f} COP']], colWidths=[2.05 * inch, 4.75 * inch])
     resumen.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E9F6FC')), ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0D4D86')), ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'), ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#CFE4F0')), ('PADDING', (0, 0), (-1, -1), 8)]))
     filas = [['Pedido', 'Entrega', 'Estado', 'Total', 'Pagado', 'Saldo']]
@@ -889,13 +908,12 @@ def exportar_reporte(formato):
         from reportlab.lib.pagesizes import letter
         from reportlab.lib.units import inch
         from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
         salida = BytesIO(); documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=38, leftMargin=38, topMargin=44, bottomMargin=38)
         estilos = getSampleStyleSheet(); total = sum(fila[4] for fila in filas)
         estados = {estado: sum(1 for fila in filas if fila[3] == estado) for estado in ('Pendiente', 'Listo para entrega', 'Entregado')}
         titulo = 'REPORTE COMERCIAL' if mostrar_valor else 'REPORTE OPERATIVO'
-        cabecera = Table([[Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b><br/><font size="9">' + titulo + '</font>', estilos['Title']), Paragraph('<b>Generado</b><br/><font size="9">' + datetime.now(ZoneInfo('America/Bogota')).strftime('%d/%m/%Y %H:%M') + '</font>', estilos['Normal'])]], colWidths=[4.7*inch, 2.2*inch])
-        cabecera.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),colors.HexColor('#092B52')),('TEXTCOLOR',(0,0),(-1,-1),colors.white),('PADDING',(0,0),(-1,-1),16),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(1,0),(1,0),'RIGHT')]))
+        cabecera = crear_cabecera_pdf(estilos, titulo, '<b>GENERADO</b><br/><font size="9">' + datetime.now(ZoneInfo('America/Bogota')).strftime('%d/%m/%Y %H:%M') + '</font>')
         tarjetas = [['PEDIDOS', str(len(filas)), 'PENDIENTES', str(estados['Pendiente'])]]
         if mostrar_valor:
             tarjetas[0] += ['VALOR TOTAL', f'${total:,.0f}']
@@ -1315,14 +1333,14 @@ def construir_pdf_cotizacion(cotizacion):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Image
 
     salida = BytesIO()
     documento = SimpleDocTemplate(salida, pagesize=letter, rightMargin=38, leftMargin=38, topMargin=36, bottomMargin=36)
     estilos = getSampleStyleSheet()
     estilos.add(ParagraphStyle(name='BrandSmall', parent=estilos['Normal'], textColor=colors.HexColor('#60788A'), fontSize=8, leading=11))
     estilos.add(ParagraphStyle(name='DocumentTitle', parent=estilos['Heading1'], textColor=colors.HexColor('#12344D'), fontSize=19, leading=23, spaceAfter=2))
-    logo_path = os.path.join(app.static_folder, 'images', 'logo-montoya.png')
+    logo_path = os.path.join(app.static_folder, 'images', 'logo-montoya-recortado.png')
     marca = Image(logo_path, width=1.45 * inch, height=1.1 * inch) if os.path.exists(logo_path) else Paragraph('<b>LÁMINAS Y TABLEROS MONTOYA</b>', estilos['Title'])
     tipo_documento = getattr(cotizacion, 'tipo_documento', 'COTIZACIÓN')
     etiqueta_fecha = 'Válida hasta' if tipo_documento == 'COTIZACIÓN' else 'Entrega programada'
