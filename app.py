@@ -235,8 +235,8 @@ class HistorialPedido(db.Model):
 # ---------- SEGURIDAD Y ROLES ----------
 
 PERMISOS_POR_ROL = {
-    'Administrador': 'Acceso total: usuarios, pagos, inventario, reportes, cotizaciones y configuración comercial.',
-    'Vendedor': 'Gestiona sus cotizaciones y pedidos; consulta únicamente sus resultados comerciales.',
+    'Administrador': 'Acceso total: usuarios, pagos, inventario, reportes y configuración comercial.',
+    'Vendedor': 'Gestiona sus pedidos y consulta únicamente sus resultados comerciales.',
     'Operario': 'Consulta producción, actualiza estados e inventario; no accede a valores, pagos ni usuarios.',
     'Cliente': 'Solo puede consultar sus propios pedidos y el estado de su cuenta.',
 }
@@ -562,7 +562,6 @@ def panel():
     datos = {}
     resumen_mensual = None
     ejecutivo = None
-    tendencia_dashboard = None
     if rol == 'Administrador':
         datos = {'Clientes registrados': Cliente.query.count(), 'Productos activos': Producto.query.count(), 'Pedidos registrados': Pedido.query.count()}
         inicio_mes = date.today().replace(day=1)
@@ -587,16 +586,6 @@ def panel():
             'proximas_entregas': proximas_entregas,
             'pagos_recientes': Pago.query.order_by(Pago.fecha.desc()).limit(5).all(),
         }
-        inicio_tendencia = date.today() - timedelta(days=6)
-        dias_tendencia = [inicio_tendencia + timedelta(days=indice) for indice in range(7)]
-        ventas_por_dia = {dia: 0 for dia in dias_tendencia}
-        for pedido in Pedido.query.filter(Pedido.fecha_pedido.between(inicio_tendencia, date.today())).all():
-            ventas_por_dia[pedido.fecha_pedido] = ventas_por_dia.get(pedido.fecha_pedido, 0) + float(pedido.total_pedido or 0)
-        tendencia_dashboard = {
-            'labels': [dia.strftime('%a %d') for dia in dias_tendencia],
-            'data': [ventas_por_dia[dia] for dia in dias_tendencia],
-            'periodo': f'{inicio_tendencia.strftime("%d/%m")} - {date.today().strftime("%d/%m")}',
-        }
     elif rol == 'Operario':
         datos = {'Pedidos pendientes': Pedido.query.filter_by(estado='Pendiente').count(), 'Listos para entrega': Pedido.query.filter_by(estado='Listo para entrega').count(), 'Pedidos entregados': Pedido.query.filter_by(estado='Entregado').count()}
     elif rol == 'Vendedor':
@@ -606,7 +595,7 @@ def panel():
         cliente = Cliente.query.filter_by(id_usuario=session['usuario_id']).first()
         pedidos_cliente = Pedido.query.filter_by(id_cliente=cliente.id_cliente).count() if cliente else 0
         datos = {'Mis pedidos': pedidos_cliente, 'Estado de cuenta': 'Activo', 'Atención': 'Contáctanos para cotizar'}
-    return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual, ejecutivo=ejecutivo, tendencia_dashboard=tendencia_dashboard)
+    return render_template('panel.html', datos=datos, rol=rol, resumen_mensual=resumen_mensual, ejecutivo=ejecutivo)
 
 
 @app.route('/reportes')
@@ -1321,11 +1310,7 @@ def editar_pedido(id):
     return render_template('nuevo_pedido.html', clientes=clientes, productos=productos, vendedores=vendedores, pedido=pedido)
 
 
-# ---------- COTIZACIONES, DOCUMENTOS Y BÚSQUEDA ----------
-
-def cotizacion_visible_para_usuario(cotizacion):
-    return session.get('usuario_rol') == 'Administrador' or cotizacion.id_vendedor == session.get('usuario_id')
-
+# ---------- DOCUMENTOS Y BÚSQUEDA ----------
 
 def construir_pdf_cotizacion(cotizacion):
     """Crea un documento comercial con identidad visual y logo de la empresa."""
@@ -1369,94 +1354,6 @@ def construir_pdf_cotizacion(cotizacion):
     return salida
 
 
-@app.route('/cotizaciones')
-@roles_requeridos('Administrador', 'Vendedor')
-def cotizaciones():
-    consulta = Cotizacion.query.order_by(Cotizacion.fecha_creacion.desc(), Cotizacion.id_cotizacion.desc())
-    if session['usuario_rol'] == 'Vendedor':
-        consulta = consulta.filter(Cotizacion.id_vendedor == session['usuario_id'])
-    return render_template('cotizaciones.html', cotizaciones=consulta.all())
-
-
-@app.route('/cotizaciones/nueva', methods=['GET', 'POST'])
-@roles_requeridos('Administrador', 'Vendedor')
-def nueva_cotizacion():
-    clientes = Cliente.query.order_by(Cliente.nombre_razon_social).all()
-    productos = Producto.query.order_by(Producto.tipo_estilo).all()
-    vendedores = Usuario.query.filter_by(rol='Vendedor').order_by(Usuario.nombre).all()
-    if request.method == 'POST':
-        productos_ids = request.form.getlist('id_producto[]')
-        medidas = request.form.getlist('medida_metros[]')
-        cantidades = request.form.getlist('cantidad[]')
-        colores = request.form.getlist('color[]')
-        vendedor_id = session['usuario_id'] if session['usuario_rol'] == 'Vendedor' else request.form.get('id_vendedor', type=int)
-        try:
-            vigencia = date.fromisoformat(request.form['vigencia_hasta'])
-            if vigencia < date.today() or not productos_ids or not (len(productos_ids) == len(medidas) == len(cantidades) == len(colores)):
-                raise ValueError
-            nueva = Cotizacion(id_cliente=request.form.get('id_cliente', type=int), id_vendedor=vendedor_id, vigencia_hasta=vigencia, observacion=request.form.get('observacion', '').strip() or None, estado='Enviada')
-            if not nueva.id_cliente or not nueva.id_vendedor:
-                raise ValueError
-            db.session.add(nueva)
-            db.session.flush()
-            total = 0
-            for producto_id, medida, cantidad, color in zip(productos_ids, medidas, cantidades, colores):
-                producto = db.session.get(Producto, int(producto_id))
-                medida, cantidad = float(medida), int(cantidad)
-                if not producto or medida <= 0 or cantidad <= 0 or not color.strip():
-                    raise ValueError
-                precio = float(producto.precio_por_metro)
-                subtotal = precio * medida * cantidad
-                total += subtotal
-                db.session.add(DetalleCotizacion(id_cotizacion=nueva.id_cotizacion, id_producto=producto.id_producto, color=color.strip(), medida_metros=medida, cantidad=cantidad, precio_unitario=precio, subtotal=subtotal))
-            nueva.total = total
-            db.session.commit()
-            flash(f'Cotización #{nueva.id_cotizacion:05d} creada correctamente.', 'success')
-            return redirect(url_for('cotizaciones'))
-        except (ValueError, TypeError):
-            db.session.rollback()
-            flash('Revisa el cliente, vigencia y detalle de los productos.', 'danger')
-    return render_template('nueva_cotizacion.html', clientes=clientes, productos=productos, vendedores=vendedores)
-
-
-@app.route('/cotizaciones/<int:id>/pdf')
-@roles_requeridos('Administrador', 'Vendedor')
-def cotizacion_pdf(id):
-    cotizacion = Cotizacion.query.get_or_404(id)
-    if not cotizacion_visible_para_usuario(cotizacion):
-        flash('Solo puedes descargar tus propias cotizaciones.', 'danger')
-        return redirect(url_for('cotizaciones'))
-    return send_file(construir_pdf_cotizacion(cotizacion), as_attachment=True, download_name=f'cotizacion_{cotizacion.id_cotizacion:05d}.pdf', mimetype='application/pdf')
-
-
-@app.route('/cotizaciones/<int:id>/convertir', methods=['POST'])
-@roles_requeridos('Administrador', 'Vendedor')
-def convertir_cotizacion_en_pedido(id):
-    cotizacion = Cotizacion.query.get_or_404(id)
-    if not cotizacion_visible_para_usuario(cotizacion):
-        flash('No puedes convertir una cotización que no te pertenece.', 'danger')
-        return redirect(url_for('cotizaciones'))
-    if cotizacion.id_pedido:
-        flash('Esta cotización ya fue convertida en pedido.', 'info')
-        return redirect(url_for('ver_pedido', id=cotizacion.id_pedido))
-    try:
-        entrega = date.fromisoformat(request.form['fecha_pedido'])
-        pedido = Pedido(id_cliente=cotizacion.id_cliente, id_vendedor=cotizacion.id_vendedor, fecha_pedido=entrega, estado='Pendiente', total_pedido=cotizacion.total)
-        db.session.add(pedido)
-        db.session.flush()
-        for detalle in cotizacion.detalles:
-            db.session.add(DetallePedido(id_pedido=pedido.id_pedido, id_producto=detalle.id_producto, color=detalle.color, medida_metros=detalle.medida_metros, cantidad=detalle.cantidad, subtotal=detalle.subtotal))
-        cotizacion.id_pedido = pedido.id_pedido
-        cotizacion.estado = 'Convertida'
-        registrar_historial(pedido, f'Pedido creado desde cotización #{cotizacion.id_cotizacion:05d}')
-        db.session.commit()
-        flash(f'Cotización convertida en pedido #{pedido.id_pedido}.', 'success')
-        return redirect(url_for('ver_pedido', id=pedido.id_pedido))
-    except ValueError:
-        flash('Indica una fecha de entrega válida.', 'danger')
-        return redirect(url_for('cotizaciones'))
-
-
 @app.route('/pedidos/<int:id>/remision.pdf')
 @roles_requeridos('Administrador', 'Operario', 'Vendedor')
 def remision_pdf(id):
@@ -1481,7 +1378,7 @@ def remision_pdf(id):
 @login_requerido
 def buscar_global():
     termino = request.args.get('q', '').strip()
-    resultados = {'pedidos': [], 'clientes': [], 'productos': [], 'cotizaciones': []}
+    resultados = {'pedidos': [], 'clientes': [], 'productos': []}
     if len(termino) >= 2:
         patron = f'%{termino}%'
         consulta_pedidos = consulta_por_rol().join(Cliente).filter(or_(func.cast(Pedido.id_pedido, db.String).like(patron), Cliente.nombre_razon_social.ilike(patron)))
@@ -1492,11 +1389,6 @@ def buscar_global():
         if session['usuario_rol'] != 'Cliente':
             resultados['clientes'] = Cliente.query.filter(or_(Cliente.nombre_razon_social.ilike(patron), Cliente.numero_identificacion.like(patron), Cliente.correo.ilike(patron))).limit(8).all()
             resultados['productos'] = Producto.query.filter(or_(Producto.tipo_estilo.ilike(patron), Producto.calibre.ilike(patron))).limit(8).all()
-        if session['usuario_rol'] in ('Administrador', 'Vendedor'):
-            consulta_cot = Cotizacion.query.join(Cliente).filter(or_(func.cast(Cotizacion.id_cotizacion, db.String).like(patron), Cliente.nombre_razon_social.ilike(patron)))
-            if session['usuario_rol'] == 'Vendedor':
-                consulta_cot = consulta_cot.filter(Cotizacion.id_vendedor == session['usuario_id'])
-            resultados['cotizaciones'] = consulta_cot.order_by(Cotizacion.id_cotizacion.desc()).limit(8).all()
     return render_template('buscar.html', termino=termino, resultados=resultados)
 
 if __name__ == '__main__':
